@@ -7,6 +7,7 @@
 
 // ******************************************* BEGIN Matrix display *******************************************
 #pragma region MATRIXDISPLAY
+
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
 #include "picopixel.h"
 MatrixPanel_I2S_DMA *dma_display = nullptr;
@@ -101,27 +102,182 @@ int drawImagefromFile(const char *imageFileUri)
 #pragma endregion
 // ******************************************* END Matrix display *********************************************
 
+// ******************************************* BEGIN WIFI *****************************************************
+#pragma region WIFI
+
+#include <WiFi.h>
+#include <WiFiManager.h>
+#include <HTTPClient.h>
+
+#define WM_PLEX_SERVER_IP_LABEL "plexServerIp"
+#define WM_PLEX_SERVER_PORT_LABEL "plexServerPort"
+#define WM_PLEX_SERVER_TOKEN_LABEL "plexServerToken"
+#define PMD_CONFIG_JSON "/pmd_config.json"
+
+WiFiManager wifiManager;
+
+std::vector<const char *> _menu = {"wifi", "exit"};
+char plexServerIp[60];
+char plexServerPort[60];
+char plexServerToken[80];
+char defaultPlexPort[60] = "32400";
+bool shouldSaveConfig = false;
+
+void restartDevice() {
+  delay(3000);
+  ESP.restart();
+}
+
+void resetWifi()
+{
+  wifiManager.resetSettings();
+}
+
+void fetchConfigFile()
+{
+  if (SPIFFS.exists(PMD_CONFIG_JSON))
+  {
+    // file exists, reading and loading
+    Serial.println("reading config file");
+    File configFile = SPIFFS.open(PMD_CONFIG_JSON, "r");
+    if (configFile)
+    {
+      Serial.println("opened config file");
+      StaticJsonDocument<512> json;
+      DeserializationError error = deserializeJson(json, configFile);
+      serializeJsonPretty(json, Serial);
+      if (!error)
+      {
+        Serial.println("\nparsed json");
+
+        if (json.containsKey(WM_PLEX_SERVER_IP_LABEL) && json.containsKey(WM_PLEX_SERVER_TOKEN_LABEL))
+        {
+          const char *tempPlexServerIp = json[WM_PLEX_SERVER_IP_LABEL];
+          const char *tempPlexServerPort = json[WM_PLEX_SERVER_PORT_LABEL];
+          const char *tempPlexServerToken = json[WM_PLEX_SERVER_TOKEN_LABEL];
+
+          // Ensure null-termination and copy to plexServerIp and plexServerToken
+          strlcpy(plexServerIp, tempPlexServerIp, sizeof(plexServerIp));
+          strlcpy(plexServerPort, tempPlexServerPort ? tempPlexServerPort : defaultPlexPort, sizeof(plexServerPort)); // Assign default value if port is not present
+          strlcpy(plexServerToken, tempPlexServerToken, sizeof(plexServerToken));
+          Serial.println("Plex Server IP: " + String(plexServerIp));
+          Serial.println("Plex Server Port: " + String(plexServerPort));
+          Serial.println("Plex Server Token: " + String(plexServerToken));
+        }
+        else
+        {
+          Serial.println("Config missing Plex server IP or Auth token");
+        }
+      }
+      else
+      {
+        Serial.println("failed to load json config");
+      }
+      configFile.close();
+    }
+    else
+    {
+      Serial.println("Failed to open config file");
+    }
+  }
+  else
+  {
+    Serial.println("Config file does not exist");
+  }
+}
+
+// Save wifi config to SPIFF
+void saveConfig(const char *plexServerIp, const char *plexServerPort, const char *plexServerToken)
+{
+  Serial.println(F("Saving config"));
+  StaticJsonDocument<512> json;
+  json[WM_PLEX_SERVER_IP_LABEL] = plexServerIp;       // Assigning C-style strings directly
+  json[WM_PLEX_SERVER_PORT_LABEL] = plexServerPort; // Assigning C-style strings directly
+  json[WM_PLEX_SERVER_TOKEN_LABEL] = plexServerToken; // Assigning C-style strings directly
+
+  File configFile = SPIFFS.open(PMD_CONFIG_JSON, "w");
+  if (!configFile)
+  {
+    Serial.println("failed to open config file for writing");
+    return; // Exit the function early if file opening fails
+  }
+
+  serializeJsonPretty(json, Serial);
+  if (serializeJson(json, configFile) == 0)
+  {
+    Serial.println(F("Failed to write to file"));
+  }
+  configFile.close();
+  shouldSaveConfig = false;
+}
+
+// callback notifying us of the need to save config
+void saveConfigCallback()
+{
+  Serial.println("Should save config");
+  shouldSaveConfig = true;
+}
+
+void wifiConnect()
+{
+  bool resp;
+  // resetWifi();
+  wifiManager.setSaveConfigCallback(saveConfigCallback);
+
+  WiFiManagerParameter plexServerIpParam(WM_PLEX_SERVER_IP_LABEL, "Plex Server IP Address", plexServerIp, 40);
+  WiFiManagerParameter plexServerPortParam(WM_PLEX_SERVER_PORT_LABEL, "Plex Server Port Number (defaults to 32400)", plexServerPort, 40);
+  WiFiManagerParameter plexServerTokenParam(WM_PLEX_SERVER_TOKEN_LABEL, "Plex Server Auth Token", plexServerToken, 60);
+
+  wifiManager.setTitle("PMD Wifi Setup");
+  wifiManager.setMenu(_menu);
+  wifiManager.addParameter(&plexServerIpParam);
+  wifiManager.addParameter(&plexServerPortParam); 
+  wifiManager.addParameter(&plexServerTokenParam);
+
+  resp = wifiManager.autoConnect("PMD Wifi Setup");
+
+  if (!resp)
+  {
+    Serial.println("Failed to connect");
+    restartDevice();
+  }
+  else
+  {
+    Serial.println("connected!");
+    // save the custom parameters
+    if (shouldSaveConfig)
+    {
+      strncpy(plexServerIp, plexServerIpParam.getValue(), 40);
+      strncpy(plexServerPort, plexServerPortParam.getValue(), 40);
+      strncpy(plexServerToken, plexServerTokenParam.getValue(), 60);
+
+      saveConfig(plexServerIp, plexServerPort, plexServerToken);
+      restartDevice();
+    }
+  }
+}
+
+boolean isConnected()
+{
+  return WiFi.status() == WL_CONNECTED;
+}
+
+#pragma endregion
+// ******************************************* END WIFI *******************************************************
+
 String lastAlbumArtURL = ""; // Variable to store the last downloaded album art URL
 bool albumArtChanged = false;
-const char *ssid = "ssid";
-const char *password = "password";
-const char *plexServerIP = "serverip";
-const int plexPort = 0;
-const char *authToken = "authtoken";
-
-#include <HTTPClient.h>
-#include <WiFi.h>
 
 void downloadCoverArt(const char *relativeUrl)
 {
   HTTPClient http;
   // Construct the full URL by appending the relative URL to the base URL
-  String imageUrl = "http://" + String(plexServerIP) + ":" + String(plexPort) + "/photo/:/transcode?width=64&height=64&url=" + String(relativeUrl);
+  String imageUrl = "http://" + String(plexServerIp) + ":" + String(plexServerPort) + "/photo/:/transcode?width=64&height=64&url=" + String(relativeUrl);
   // Send GET request to the image URL
   if (http.begin(imageUrl))
   {
     // Set the authentication token in the request headers
-    http.addHeader("X-Plex-Token", authToken);
+    http.addHeader("X-Plex-Token", plexServerToken);
     int httpCode = http.GET();
     if (httpCode == HTTP_CODE_OK)
     {
@@ -162,11 +318,14 @@ void getAlbumArt()
 {
   HTTPClient http;
   // Construct the Plex API URL to get the currently playing item
-  String apiUrl = "http://" + String(plexServerIP) + ":" + String(plexPort) + "/status/sessions";
+  String apiUrl = "http://" + String(plexServerIp) + ":" + String(plexServerPort) + "/status/sessions";
+  Serial.print("***************** api url = ");
+  Serial.println(apiUrl);
+
   if (http.begin(apiUrl))
   {
     // Set the authentication token in the request headers
-    http.addHeader("X-Plex-Token", authToken);
+    http.addHeader("X-Plex-Token", plexServerToken);
     int httpCode = http.GET();
     if (httpCode > 0)
     {
@@ -251,32 +410,48 @@ void getAlbumArt()
   }
 }
 
+int failedConnectionAttempts = 0;
+const int MAX_FAILED_ATTEMPTS = 5;
+
 void setup()
 {
   Serial.begin(115200);
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(1000);
-    Serial.println("Connecting to WiFi...");
-  }
-  Serial.println("Connected to WiFi");
+
   // Initialize SPIFFS
   if (!SPIFFS.begin(true))
   {
     Serial.println("Failed to mount file system");
+    restartDevice();
     return;
   }
 
   displaySetup();
+
+  fetchConfigFile();
+
+  wifiConnect();
+
+  while (!isConnected())
+  {
+    delay(1000);
+    Serial.println("Connecting to WiFi...");
+    failedConnectionAttempts++;
+    if (failedConnectionAttempts >= MAX_FAILED_ATTEMPTS)
+    {
+      Serial.println("Failed to connect to WiFi after multiple attempts. Restarting device...");
+      restartDevice();
+    }
+  }
+  Serial.println("Connected to WiFi");
+
   Serial.println("\r\nInitialisation done.");
 }
 
 void loop()
 {
-  if (WiFi.status() == WL_CONNECTED)
+  if (isConnected())
   {
     getAlbumArt();
   }
-  delay(10000); // Check every 10 seconds
+  delay(5000); // Check every 5 seconds
 }
