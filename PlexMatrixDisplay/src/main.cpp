@@ -1,15 +1,13 @@
-#include <WiFi.h>
-#include <HTTPClient.h>
-#include <ArduinoJson.h>
-#include <FS.h>
-#include <SPIFFS.h>
-#include <JPEGDEC.h>
-
 // ******************************************* BEGIN Matrix display *******************************************
 #pragma region MATRIXDISPLAY
 
+#include <FS.h>
+#include <SPIFFS.h>
+#include <JPEGDEC.h>
+#include <ArduinoJson.h>
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
 #include "picopixel.h"
+
 MatrixPanel_I2S_DMA *dma_display = nullptr;
 uint16_t myBLACK = dma_display->color565(0, 0, 0);
 uint16_t myWHITE = dma_display->color565(255, 255, 255);
@@ -17,7 +15,9 @@ uint16_t myRED = dma_display->color565(255, 0, 0);
 uint16_t myGREEN = dma_display->color565(0, 255, 0);
 uint16_t myBLUE = dma_display->color565(0, 0, 255);
 JPEGDEC jpeg;
+
 const char *ALBUM_ART = "/album.jpg";
+
 void displaySetup()
 {
   Serial.println("matrix display setup");
@@ -31,8 +31,8 @@ void displaySetup()
   dma_display = new MatrixPanel_I2S_DMA(mxconfig);
   dma_display->begin();
 }
-// This next function will be called during decoding of the jpeg file to
-// render each block to the Matrix.
+
+// This next function will be called during decoding of the jpeg file to render each block to the Matrix.
 int JPEGDraw(JPEGDRAW *pDraw)
 {
   // Stop further decoding as image is running off bottom of screen
@@ -41,6 +41,7 @@ int JPEGDraw(JPEGDRAW *pDraw)
   dma_display->drawRGBBitmap(pDraw->x, pDraw->y, pDraw->pPixels, pDraw->iWidth, pDraw->iHeight);
   return 1;
 }
+
 fs::File myfile;
 void *myOpen(const char *filename, int32_t *size)
 {
@@ -48,36 +49,43 @@ void *myOpen(const char *filename, int32_t *size)
   *size = myfile.size();
   return &myfile;
 }
+
 void myClose(void *handle)
 {
   if (myfile)
     myfile.close();
 }
+
 int32_t myRead(JPEGFILE *handle, uint8_t *buffer, int32_t length)
 {
   if (!myfile)
     return 0;
   return myfile.read(buffer, length);
 }
+
 int32_t mySeek(JPEGFILE *handle, int32_t position)
 {
   if (!myfile)
     return 0;
   return myfile.seek(position);
 }
+
 void showDefaultScreen()
 {
   dma_display->fillScreen(myBLACK);
 }
+
 void displayRect(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color)
 {
   dma_display->fillRect(x, y, w, h, color);
 }
+
 // Image Related
 void clearImage()
 {
   dma_display->fillScreen(myBLACK);
 }
+
 void printCenter(const char *buf, int y)
 {
   int16_t x1, y1;
@@ -88,6 +96,7 @@ void printCenter(const char *buf, int y)
   dma_display->setTextColor(0xffff);
   dma_display->print(buf);
 }
+
 int drawImagefromFile(const char *imageFileUri)
 {
   unsigned long lTime = millis();
@@ -99,6 +108,7 @@ int drawImagefromFile(const char *imageFileUri)
   Serial.println(millis() - lTime);
   return decodeStatus;
 }
+
 #pragma endregion
 // ******************************************* END Matrix display *********************************************
 
@@ -319,8 +329,6 @@ void getAlbumArt()
   HTTPClient http;
   // Construct the Plex API URL to get the currently playing item
   String apiUrl = "http://" + String(plexServerIp) + ":" + String(plexServerPort) + "/status/sessions";
-  Serial.print("***************** api url = ");
-  Serial.println(apiUrl);
 
   if (http.begin(apiUrl))
   {
@@ -417,15 +425,22 @@ void setup()
 {
   Serial.begin(115200);
 
+  displaySetup();
+
   // Initialize SPIFFS
   if (!SPIFFS.begin(true))
   {
     Serial.println("Failed to mount file system");
+    printCenter("SPIFFS FAILED", 20);
+    printCenter(" Restarting", 30);
     restartDevice();
     return;
   }
 
-  displaySetup();
+  printCenter(" PLEX ", 10);
+  printCenter("MATRIX", 20);
+  printCenter("DISPLAY", 30);
+  delay(3000);
 
   fetchConfigFile();
 
@@ -435,14 +450,20 @@ void setup()
   {
     delay(1000);
     Serial.println("Connecting to WiFi...");
+    printCenter("Connecting to WiFi.", 40);
+
     failedConnectionAttempts++;
     if (failedConnectionAttempts >= MAX_FAILED_ATTEMPTS)
     {
       Serial.println("Failed to connect to WiFi after multiple attempts. Restarting device...");
+      printCenter("WiFi FAILED", 20);
+      printCenter(" Restarting", 30);
       restartDevice();
     }
   }
   Serial.println("Connected to WiFi");
+  printCenter("Connected to WiFi.", 40);
+  delay(2000);
 
   Serial.println("\r\nInitialisation done.");
 }
