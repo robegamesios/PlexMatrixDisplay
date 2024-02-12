@@ -37,6 +37,7 @@ void displaySetup()
   mxconfig.gpio.e = 18;
   mxconfig.clkphase = false;
   dma_display = new MatrixPanel_I2S_DMA(mxconfig);
+  dma_display->setTextWrap(false);
   dma_display->begin();
 }
 
@@ -96,6 +97,9 @@ void clearImage()
 
 void printCenter(const char *buf, int y)
 {
+  // Clear the screen
+  displayRect(0, y - 5, PANEL_WIDTH, 8, 0);
+  
   int16_t x1, y1;
   uint16_t w, h;
   dma_display->setFont(&Picopixel);
@@ -105,12 +109,68 @@ void printCenter(const char *buf, int y)
   dma_display->print(buf);
 }
 
+void scrollingPrintCenter(const char *buf, int y) {
+  int16_t x1, y1;
+  uint16_t w, h;
+  uint16_t textWidth;
+  int clearOriginY = y - 5;
+  int clearHeight = 8;
+
+  // Set the font and get the width of the text
+  dma_display->setFont(&Picopixel);
+  dma_display->getTextBounds(buf, 0, y, &x1, &y1, &w, &h);
+  textWidth = w;
+
+  // If the text width is greater than the screen width, start scrolling
+  if (textWidth > PANEL_WIDTH) {
+    // Initialize scrolling position
+    int16_t xPos = PANEL_WIDTH;
+
+    // Loop for scrolling
+    while (xPos > -textWidth) {
+      // Clear part of the screen for the scrolling text
+      displayRect(0, clearOriginY, PANEL_WIDTH, clearHeight, 0);
+
+      // Calculate the new position for the text
+      int16_t displayX = xPos;
+
+      // Print the text at the new position
+      dma_display->setCursor(displayX, y);
+      dma_display->setTextColor(0xffff);
+      dma_display->print(buf);
+      
+      // Delay for a short period to control the scrolling speed
+      delay(100);
+
+      // Move the text to the left
+      xPos--;
+
+      if (xPos == -textWidth) {
+        // Not using rescrolling right now, coz it blocks the loop, instead just using the loop delay to restart scrolling
+        // If the text has scrolled completely off the screen, reset xPos to start over
+        // xPos = PANEL_WIDTH;
+
+        displayRect(0, clearOriginY, PANEL_WIDTH, clearHeight, 0);
+      }
+    }
+  } else {
+    // If the text width is not greater than the screen width, print it centered
+    // Clear part of the screen for the scrolling text
+    displayRect(0, clearOriginY, PANEL_WIDTH, clearHeight, 0);
+
+    dma_display->setCursor(32 - (w / 2), y);
+    dma_display->setTextColor(0xffff);
+    dma_display->print(buf);
+  }
+}
+
 int drawImagefromFile(const char *imageFileUri)
 {
   unsigned long lTime = millis();
   lTime = millis();
   jpeg.open((const char *)imageFileUri, myOpen, myClose, myRead, mySeek, JPEGDraw);
-  int decodeStatus = jpeg.decode(0, 0, 0);
+  // int decodeStatus = jpeg.decode(0, 0, 0);
+  int decodeStatus = jpeg.decode(8, 8, 0);
   jpeg.close();
   Serial.print("Time taken to decode and display Image (ms): ");
   Serial.println(millis() - lTime);
@@ -315,13 +375,27 @@ void loadPreferences()
 #pragma region PLEX_COVER_ART
 
 String lastAlbumArtURL = ""; // Variable to store the last downloaded album art URL
-bool albumArtChanged = false;
 
-void downloadCoverArt(const char *relativeUrl)
+String decodeHtmlEntities(String text) {
+  String decodedText = text;
+  decodedText.replace("&quot;", "\"");
+  decodedText.replace("&amp;", "&");
+  decodedText.replace("&apos;", "'");
+  decodedText.replace("&lt;", "<");
+  decodedText.replace("&gt;", ">");
+  decodedText.replace("&#8217;", "'");
+  decodedText.replace("&#39;", "'");
+  // Add more replacements as needed
+  
+  return decodedText;
+}
+
+void downloadCoverArt(const char *relativeUrl, const char *trackTitle, const char *artistName)
 {
   HTTPClient http;
   // Construct the full URL by appending the relative URL to the base URL
-  String imageUrl = "http://" + String(plexServerIp) + ":" + String(plexServerPort) + "/photo/:/transcode?width=64&height=64&url=" + String(relativeUrl);
+  // String imageUrl = "http://" + String(plexServerIp) + ":" + String(plexServerPort) + "/photo/:/transcode?width=64&height=64&url=" + String(relativeUrl);
+  String imageUrl = "http://" + String(plexServerIp) + ":" + String(plexServerPort) + "/photo/:/transcode?width=48&height=48&url=" + String(relativeUrl);
   // Send GET request to the image URL
   if (http.begin(imageUrl))
   {
@@ -344,6 +418,8 @@ void downloadCoverArt(const char *relativeUrl)
       {
         Serial.println("Image downloaded and saved successfully");
         drawImagefromFile(ALBUM_ART);
+        scrollingPrintCenter(trackTitle, 5);
+        printCenter(artistName, 62);
       }
       else
       {
@@ -414,6 +490,14 @@ void getAlbumArt()
                 Serial.println("Last Track Title: " + trackTitle);
                 Serial.println("Artist Name: " + artistName);
                 Serial.println("Last Thumbnail URL: " + coverArtURL);
+
+                String cleanTrackTitle = decodeHtmlEntities(trackTitle);
+                char trackTitleCharArray[cleanTrackTitle.length() + 1];
+                cleanTrackTitle.toCharArray(trackTitleCharArray, cleanTrackTitle.length() + 1);
+
+                char artistNameCharArray[artistName.length() + 1];
+                artistName.toCharArray(artistNameCharArray, artistName.length() + 1);
+
                 // Check if the current album art URL is different from the last one
                 if (coverArtURL != lastAlbumArtURL)
                 {
@@ -424,19 +508,22 @@ void getAlbumArt()
                     SPIFFS.remove(ALBUM_ART);
                   }
 
-                  albumArtChanged = true;
                   // Allocate a character array with extra space for null-terminator
-                  char charArray[coverArtURL.length() + 1];
+                  char coverArtCharArray[coverArtURL.length() + 1];
+
                   // Copy the content of the String to the char array
-                  coverArtURL.toCharArray(charArray, coverArtURL.length() + 1);
+                  coverArtURL.toCharArray(coverArtCharArray, coverArtURL.length() + 1);
+
                   // Download and save the thumbnail image
-                  downloadCoverArt(charArray);
+                  downloadCoverArt(coverArtCharArray, trackTitleCharArray, artistNameCharArray);
                   lastAlbumArtURL = coverArtURL; // Update the last downloaded album art URL
                 }
                 else
                 {
-                  albumArtChanged = false;
                   Serial.println("Album art hasn't changed. Skipping download.");
+
+                  //Trigger scrolling song title
+                  scrollingPrintCenter(trackTitleCharArray, 5);
                 }
               }
               else
@@ -1106,6 +1193,7 @@ void setup()
   printCenter("Connected to WiFi.", 40);
   delay(3000);
 
+  clearImage();
   Serial.println("\r\nInitialisation done.");
 
   server.begin();
