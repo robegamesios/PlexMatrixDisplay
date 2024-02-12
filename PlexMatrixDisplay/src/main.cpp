@@ -304,6 +304,7 @@ void loadPreferences()
 
 // ******************************************* BEGIN WEB SERVER ***********************************************
 #pragma region WEBSERVER
+
 #include <WebServer.h>
 #include <ESPmDNS.h>
 #include <Update.h>
@@ -315,26 +316,6 @@ String httpBuffer;
 bool force_restart;
 const char *HEADER_TEMPLATE_D = "X-%s: %d\r\n";
 const char *HEADER_TEMPLATE_S = "X-%s: %s\r\n";
-
-void getCurrentSettings(WiFiClient client)
-{
-  loadPreferences();
-
-  //   client.println("HTTP/1.0 204 No Content");
-
-  //   client.printf(HEADER_TEMPLATE_D, ClockwiseParams::getInstance()->PREF_DISPLAY_BRIGHT, ClockwiseParams::getInstance()->displayBright);
-  //   client.printf(HEADER_TEMPLATE_D, ClockwiseParams::getInstance()->PREF_DISPLAY_ABC_MIN, ClockwiseParams::getInstance()->autoBrightMin);
-  //   client.printf(HEADER_TEMPLATE_D, ClockwiseParams::getInstance()->PREF_DISPLAY_ABC_MAX, ClockwiseParams::getInstance()->autoBrightMax);
-  //   client.printf(HEADER_TEMPLATE_D, ClockwiseParams::getInstance()->PREF_SWAP_BLUE_GREEN, ClockwiseParams::getInstance()->swapBlueGreen);
-  //   client.printf(HEADER_TEMPLATE_D, ClockwiseParams::getInstance()->PREF_USE_24H_FORMAT, ClockwiseParams::getInstance()->use24hFormat);
-  //   client.printf(HEADER_TEMPLATE_D, ClockwiseParams::getInstance()->PREF_LDR_PIN, ClockwiseParams::getInstance()->ldrPin);
-  //   client.printf(HEADER_TEMPLATE_S, ClockwiseParams::getInstance()->PREF_TIME_ZONE, ClockwiseParams::getInstance()->timeZone.c_str());
-  //   client.printf(HEADER_TEMPLATE_S, ClockwiseParams::getInstance()->PREF_WIFI_SSID, ClockwiseParams::getInstance()->wifiSsid.c_str());
-  //   client.printf(HEADER_TEMPLATE_S, ClockwiseParams::getInstance()->PREF_NTP_SERVER, ClockwiseParams::getInstance()->ntpServer.c_str());
-  //   client.printf(HEADER_TEMPLATE_S, ClockwiseParams::getInstance()->PREF_CANVAS_FILE, ClockwiseParams::getInstance()->canvasFile.c_str());
-  //   client.printf(HEADER_TEMPLATE_S, ClockwiseParams::getInstance()->PREF_CANVAS_SERVER, ClockwiseParams::getInstance()->canvasServer.c_str());
-  //   client.printf(HEADER_TEMPLATE_S, ClockwiseParams::getInstance()->PREF_MANUAL_POSIX, ClockwiseParams::getInstance()->manualPosix.c_str());
-}
 
 void processRequest(WiFiClient client, String method, String path, String key, String value)
 {
@@ -565,8 +546,9 @@ void getAlbumArt()
 // ******************************************* BEGIN MAIN *****************************************************
 #pragma region MAIN
 
-#define COVER_ART_THEME 200
 #define AUDIO_VISUALIZER_THEME 100
+#define COVER_ART_THEME 200
+#define GIF_ART_THEME 210
 
 int failedConnectionAttempts = 0;
 const int MAX_FAILED_ATTEMPTS = 5;

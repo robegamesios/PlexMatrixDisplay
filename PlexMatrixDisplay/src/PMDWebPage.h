@@ -70,6 +70,12 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
     <a class="update-button" onclick="updatePreference('selectedTheme', 100)">Select</a>
 </div>
 <div class="card">
+    <h2 class="card-title">GIF Art</h2>
+    <p class="card-description">Display your favorite GIF Art.</p>
+    <img class="card-image" src="https://github.com/robegamesios/clockwise/blob/0b6b92c9c09d9c3aae5ba50888654250d2410f3b/firmware/lib/clockfaces/thumbnails/audio_visualizer.jpg?raw=true" alt="Gif Art">
+    <a class="update-button" onclick="updatePreference('selectedTheme', 210)">Select</a>
+</div>
+<div class="card">
     <h2 class="card-title">Canvas Clock</h2>
     <p class="card-description">Customizable canvas for gif and images.</p>
     <img class="card-image" src="https://github.com/robegamesios/clockwise/blob/609c24bcefe1ac681b54db0fb495e52a5ae43f28/firmware/lib/clockfaces/thumbnails/canvas_clock.jpg?raw=true" alt="Canvas Clock">
