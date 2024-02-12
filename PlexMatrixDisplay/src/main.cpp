@@ -99,7 +99,7 @@ void printCenter(const char *buf, int y)
 {
   // Clear the screen
   displayRect(0, y - 5, PANEL_WIDTH, 8, 0);
-  
+
   int16_t x1, y1;
   uint16_t w, h;
   dma_display->setFont(&Picopixel);
@@ -109,7 +109,8 @@ void printCenter(const char *buf, int y)
   dma_display->print(buf);
 }
 
-void scrollingPrintCenter(const char *buf, int y) {
+void scrollingPrintCenter(const char *buf, int y)
+{
   int16_t x1, y1;
   uint16_t w, h;
   uint16_t textWidth;
@@ -122,12 +123,14 @@ void scrollingPrintCenter(const char *buf, int y) {
   textWidth = w;
 
   // If the text width is greater than the screen width, start scrolling
-  if (textWidth > PANEL_WIDTH) {
+  if (textWidth > PANEL_WIDTH)
+  {
     // Initialize scrolling position
     int16_t xPos = PANEL_WIDTH;
 
     // Loop for scrolling
-    while (xPos > -textWidth) {
+    while (xPos > -textWidth)
+    {
       // Clear part of the screen for the scrolling text
       displayRect(0, clearOriginY, PANEL_WIDTH, clearHeight, 0);
 
@@ -138,14 +141,15 @@ void scrollingPrintCenter(const char *buf, int y) {
       dma_display->setCursor(displayX, y);
       dma_display->setTextColor(0xffff);
       dma_display->print(buf);
-      
+
       // Delay for a short period to control the scrolling speed
       delay(100);
 
       // Move the text to the left
       xPos--;
 
-      if (xPos == -textWidth) {
+      if (xPos == -textWidth)
+      {
         // Not using rescrolling right now, coz it blocks the loop, instead just using the loop delay to restart scrolling
         // If the text has scrolled completely off the screen, reset xPos to start over
         // xPos = PANEL_WIDTH;
@@ -153,7 +157,9 @@ void scrollingPrintCenter(const char *buf, int y) {
         displayRect(0, clearOriginY, PANEL_WIDTH, clearHeight, 0);
       }
     }
-  } else {
+  }
+  else
+  {
     // If the text width is not greater than the screen width, print it centered
     // Clear part of the screen for the scrolling text
     displayRect(0, clearOriginY, PANEL_WIDTH, clearHeight, 0);
@@ -376,7 +382,8 @@ void loadPreferences()
 
 String lastAlbumArtURL = ""; // Variable to store the last downloaded album art URL
 
-String decodeHtmlEntities(String text) {
+String decodeHtmlEntities(String text)
+{
   String decodedText = text;
   decodedText.replace("&quot;", "\"");
   decodedText.replace("&amp;", "&");
@@ -387,8 +394,17 @@ String decodeHtmlEntities(String text) {
   decodedText.replace("&#8216;", "'");
   decodedText.replace("&#39;", "'");
   // Add more replacements as needed
-  
+
   return decodedText;
+}
+
+void deleteAlbumArt()
+{
+  if (SPIFFS.exists(ALBUM_ART) == true)
+  {
+    Serial.println("Removing existing image");
+    SPIFFS.remove(ALBUM_ART);
+  }
 }
 
 void downloadCoverArt(const char *relativeUrl, const char *trackTitle, const char *artistName)
@@ -503,11 +519,7 @@ void getAlbumArt()
                 if (coverArtURL != lastAlbumArtURL)
                 {
                   // Delete old cover art
-                  if (SPIFFS.exists(ALBUM_ART) == true)
-                  {
-                    Serial.println("Removing existing image");
-                    SPIFFS.remove(ALBUM_ART);
-                  }
+                  deleteAlbumArt();
 
                   // Allocate a character array with extra space for null-terminator
                   char coverArtCharArray[coverArtURL.length() + 1];
@@ -523,7 +535,7 @@ void getAlbumArt()
                 {
                   Serial.println("Album art hasn't changed. Skipping download.");
 
-                  //Trigger scrolling song title
+                  // Trigger scrolling song title
                   scrollingPrintCenter(trackTitleCharArray, 5);
                 }
               }
@@ -538,17 +550,25 @@ void getAlbumArt()
       else
       {
         Serial.println("No track is currently playing.");
+        printCenter("NO TRACK IS", 20);
+        printCenter("CURRENTLY", 30);
+        printCenter("PLAYING", 40);
       }
     }
     else
     {
       Serial.println("HTTP request failed");
+      printCenter("HTTP REQUEST", 30);
+      printCenter("FAILED", 40);
     }
     http.end();
   }
   else
   {
     Serial.println("Unable to connect to Plex server");
+    printCenter("UNABLE TO", 20);
+    printCenter("CONNECT TO", 30);
+    printCenter("PLEX SERVER", 40);
   }
 }
 
@@ -1150,6 +1170,9 @@ void setup()
     restartDevice();
     return;
   }
+
+  // Cleanup from last session
+  deleteAlbumArt();
 
   preferences.begin("PMD", false);
   selectedTheme = preferences.getUInt(PREF_SELECTED_THEME, PLEX_COVER_ART_THEME);
