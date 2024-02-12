@@ -1,5 +1,5 @@
-// ******************************************* BEGIN Matrix display *******************************************
-#pragma region MATRIXDISPLAY
+// ******************************************* BEGIN MATRIX DISPLAY *******************************************
+#pragma region MATRIX_DISPLAY
 
 #include <FS.h>
 #include <SPIFFS.h>
@@ -110,7 +110,7 @@ int drawImagefromFile(const char *imageFileUri)
 }
 
 #pragma endregion
-// ******************************************* END Matrix display *********************************************
+// ******************************************* END MATRIX DISPLAY *********************************************
 
 // ******************************************* BEGIN WIFI *****************************************************
 #pragma region WIFI
@@ -133,13 +133,16 @@ char plexServerToken[80];
 char defaultPlexPort[60] = "32400";
 bool shouldSaveConfig = false;
 
-void restartDevice() {
+void restartDevice()
+{
+  printCenter("REBOOTING..", 30);
   delay(3000);
   ESP.restart();
 }
 
 void resetWifi()
 {
+  printCenter("RESETTING WiFi..", 30);
   wifiManager.resetSettings();
 }
 
@@ -202,7 +205,7 @@ void saveConfig(const char *plexServerIp, const char *plexServerPort, const char
   Serial.println(F("Saving config"));
   StaticJsonDocument<512> json;
   json[WM_PLEX_SERVER_IP_LABEL] = plexServerIp;       // Assigning C-style strings directly
-  json[WM_PLEX_SERVER_PORT_LABEL] = plexServerPort; // Assigning C-style strings directly
+  json[WM_PLEX_SERVER_PORT_LABEL] = plexServerPort;   // Assigning C-style strings directly
   json[WM_PLEX_SERVER_TOKEN_LABEL] = plexServerToken; // Assigning C-style strings directly
 
   File configFile = SPIFFS.open(PMD_CONFIG_JSON, "w");
@@ -241,7 +244,7 @@ void wifiConnect()
   wifiManager.setTitle("PMD Wifi Setup");
   wifiManager.setMenu(_menu);
   wifiManager.addParameter(&plexServerIpParam);
-  wifiManager.addParameter(&plexServerPortParam); 
+  wifiManager.addParameter(&plexServerPortParam);
   wifiManager.addParameter(&plexServerTokenParam);
 
   resp = wifiManager.autoConnect("PMD Wifi Setup");
@@ -249,6 +252,8 @@ void wifiConnect()
   if (!resp)
   {
     Serial.println("Failed to connect");
+    printCenter("FAILED to Connect", 30);
+    delay(3000);
     restartDevice();
   }
   else
@@ -274,6 +279,142 @@ boolean isConnected()
 
 #pragma endregion
 // ******************************************* END WIFI *******************************************************
+
+// ******************************************* BEGIN PREFERENCES **********************************************
+#pragma region PREFERENCES
+
+#include <Preferences.h>
+
+Preferences preferences;
+const char *const PREF_SELECTED_THEME = "selectedTheme";
+uint8_t selectedTheme;
+
+void savePreferences()
+{
+  preferences.putUInt(PREF_SELECTED_THEME, selectedTheme);
+}
+
+void loadPreferences()
+{
+  selectedTheme = preferences.getUInt(PREF_SELECTED_THEME, 200);
+}
+
+#pragma endregion
+// ******************************************* END PREFERENCES ************************************************
+
+// ******************************************* BEGIN WEB SERVER ***********************************************
+#pragma region WEBSERVER
+#include <WebServer.h>
+#include <ESPmDNS.h>
+#include <Update.h>
+#include "PMDWebPage.h"
+
+WiFiServer server(80);
+
+String httpBuffer;
+bool force_restart;
+const char *HEADER_TEMPLATE_D = "X-%s: %d\r\n";
+const char *HEADER_TEMPLATE_S = "X-%s: %s\r\n";
+
+void getCurrentSettings(WiFiClient client)
+{
+  loadPreferences();
+
+  //   client.println("HTTP/1.0 204 No Content");
+
+  //   client.printf(HEADER_TEMPLATE_D, ClockwiseParams::getInstance()->PREF_DISPLAY_BRIGHT, ClockwiseParams::getInstance()->displayBright);
+  //   client.printf(HEADER_TEMPLATE_D, ClockwiseParams::getInstance()->PREF_DISPLAY_ABC_MIN, ClockwiseParams::getInstance()->autoBrightMin);
+  //   client.printf(HEADER_TEMPLATE_D, ClockwiseParams::getInstance()->PREF_DISPLAY_ABC_MAX, ClockwiseParams::getInstance()->autoBrightMax);
+  //   client.printf(HEADER_TEMPLATE_D, ClockwiseParams::getInstance()->PREF_SWAP_BLUE_GREEN, ClockwiseParams::getInstance()->swapBlueGreen);
+  //   client.printf(HEADER_TEMPLATE_D, ClockwiseParams::getInstance()->PREF_USE_24H_FORMAT, ClockwiseParams::getInstance()->use24hFormat);
+  //   client.printf(HEADER_TEMPLATE_D, ClockwiseParams::getInstance()->PREF_LDR_PIN, ClockwiseParams::getInstance()->ldrPin);
+  //   client.printf(HEADER_TEMPLATE_S, ClockwiseParams::getInstance()->PREF_TIME_ZONE, ClockwiseParams::getInstance()->timeZone.c_str());
+  //   client.printf(HEADER_TEMPLATE_S, ClockwiseParams::getInstance()->PREF_WIFI_SSID, ClockwiseParams::getInstance()->wifiSsid.c_str());
+  //   client.printf(HEADER_TEMPLATE_S, ClockwiseParams::getInstance()->PREF_NTP_SERVER, ClockwiseParams::getInstance()->ntpServer.c_str());
+  //   client.printf(HEADER_TEMPLATE_S, ClockwiseParams::getInstance()->PREF_CANVAS_FILE, ClockwiseParams::getInstance()->canvasFile.c_str());
+  //   client.printf(HEADER_TEMPLATE_S, ClockwiseParams::getInstance()->PREF_CANVAS_SERVER, ClockwiseParams::getInstance()->canvasServer.c_str());
+  //   client.printf(HEADER_TEMPLATE_S, ClockwiseParams::getInstance()->PREF_MANUAL_POSIX, ClockwiseParams::getInstance()->manualPosix.c_str());
+}
+
+void processRequest(WiFiClient client, String method, String path, String key, String value)
+{
+  if (method == "GET" && path == "/")
+  {
+    client.println("HTTP/1.0 200 OK");
+    client.println("Content-Type: text/html");
+    client.println();
+    client.println(SETTINGS_PAGE);
+  }
+  else if (method == "POST" && path == "/restart")
+  {
+    client.println("HTTP/1.0 204 No Content");
+    force_restart = true;
+  }
+  else if (method == "POST" && path == "/set")
+  {
+    loadPreferences();
+    if (key == PREF_SELECTED_THEME)
+    {
+      selectedTheme = value.toInt();
+      client.println("HTTP/1.0 204 No Content");
+      savePreferences();
+      force_restart = true;
+      return;
+    }
+    client.println("HTTP/1.0 204 No Content");
+  }
+}
+
+void handleHttpRequest()
+{
+  if (force_restart)
+  {
+    restartDevice();
+  }
+
+  WiFiClient client = server.available();
+  if (client)
+  {
+    while (client.connected())
+    {
+      if (client.available())
+      {
+        char c = client.read();
+        httpBuffer.concat(c);
+
+        if (c == '\n')
+        {
+          uint8_t method_pos = httpBuffer.indexOf(' ');
+          uint8_t path_pos = httpBuffer.indexOf(' ', method_pos + 1);
+
+          String method = httpBuffer.substring(0, method_pos);
+          String path = httpBuffer.substring(method_pos + 1, path_pos);
+          String key = "";
+          String value = "";
+
+          if (path.indexOf('?') > 0)
+          {
+            key = path.substring(path.indexOf('?') + 1, path.indexOf('='));
+            value = path.substring(path.indexOf('=') + 1);
+            path = path.substring(0, path.indexOf('?'));
+          }
+
+          processRequest(client, method, path, key, value);
+          httpBuffer = "";
+          break;
+        }
+      }
+    }
+    delay(1);
+    client.stop();
+  }
+}
+
+#pragma endregion
+// ******************************************* END WEB SERVER *************************************************
+
+// ******************************************* BEGIN PLEX COVER ART *******************************************
+#pragma region PLEX_COVER_ART
 
 String lastAlbumArtURL = ""; // Variable to store the last downloaded album art URL
 bool albumArtChanged = false;
@@ -418,6 +559,15 @@ void getAlbumArt()
   }
 }
 
+#pragma endregion
+// ******************************************* END PLEX COVER ART *********************************************
+
+// ******************************************* BEGIN MAIN *****************************************************
+#pragma region MAIN
+
+#define COVER_ART_THEME 200
+#define AUDIO_VISUALIZER_THEME 100
+
 int failedConnectionAttempts = 0;
 const int MAX_FAILED_ATTEMPTS = 5;
 
@@ -437,10 +587,18 @@ void setup()
     return;
   }
 
+  preferences.begin("PMD", false);
+  selectedTheme = preferences.getUInt(PREF_SELECTED_THEME, COVER_ART_THEME);
+
   printCenter(" PLEX ", 10);
   printCenter("MATRIX", 20);
   printCenter("DISPLAY", 30);
   delay(3000);
+
+  if (selectedTheme == AUDIO_VISUALIZER_THEME) {
+    //TODO: implement audio visualizer
+    return;
+  }
 
   fetchConfigFile();
 
@@ -463,16 +621,22 @@ void setup()
   }
   Serial.println("Connected to WiFi");
   printCenter("Connected to WiFi.", 40);
-  delay(2000);
+  delay(3000);
 
   Serial.println("\r\nInitialisation done.");
+
+  server.begin();
 }
 
 void loop()
 {
   if (isConnected())
   {
+    handleHttpRequest();
     getAlbumArt();
   }
   delay(5000); // Check every 5 seconds
 }
+
+#pragma endregion
+// ******************************************* END MAIN *******************************************************
