@@ -1,3 +1,7 @@
+#define AUDIO_VISUALIZER_THEME 100
+#define PLEX_COVER_ART_THEME 200
+#define GIF_ART_THEME 210
+
 // ******************************************* BEGIN MATRIX DISPLAY *******************************************
 #pragma region MATRIX_DISPLAY
 
@@ -292,6 +296,7 @@ boolean isConnected()
 Preferences preferences;
 const char *const PREF_SELECTED_THEME = "selectedTheme";
 uint8_t selectedTheme;
+uint8_t currentlyRunningTheme;
 
 void savePreferences()
 {
@@ -305,98 +310,6 @@ void loadPreferences()
 
 #pragma endregion
 // ******************************************* END PREFERENCES ************************************************
-
-// ******************************************* BEGIN WEB SERVER ***********************************************
-#pragma region WEBSERVER
-
-#include <WebServer.h>
-#include <ESPmDNS.h>
-#include <Update.h>
-#include "PMDWebPage.h"
-
-WiFiServer server(80);
-
-String httpBuffer;
-bool force_restart;
-const char *HEADER_TEMPLATE_D = "X-%s: %d\r\n";
-const char *HEADER_TEMPLATE_S = "X-%s: %s\r\n";
-
-void processRequest(WiFiClient client, String method, String path, String key, String value)
-{
-  if (method == "GET" && path == "/")
-  {
-    client.println("HTTP/1.0 200 OK");
-    client.println("Content-Type: text/html");
-    client.println();
-    client.println(SETTINGS_PAGE);
-  }
-  else if (method == "POST" && path == "/restart")
-  {
-    client.println("HTTP/1.0 204 No Content");
-    force_restart = true;
-  }
-  else if (method == "POST" && path == "/set")
-  {
-    loadPreferences();
-    if (key == PREF_SELECTED_THEME)
-    {
-      selectedTheme = value.toInt();
-      client.println("HTTP/1.0 204 No Content");
-      savePreferences();
-      force_restart = true;
-      return;
-    }
-    client.println("HTTP/1.0 204 No Content");
-  }
-}
-
-void handleHttpRequest()
-{
-  if (force_restart)
-  {
-    restartDevice();
-  }
-
-  WiFiClient client = server.available();
-  if (client)
-  {
-    while (client.connected())
-    {
-      if (client.available())
-      {
-        char c = client.read();
-        httpBuffer.concat(c);
-
-        if (c == '\n')
-        {
-          uint8_t method_pos = httpBuffer.indexOf(' ');
-          uint8_t path_pos = httpBuffer.indexOf(' ', method_pos + 1);
-
-          String method = httpBuffer.substring(0, method_pos);
-          String path = httpBuffer.substring(method_pos + 1, path_pos);
-          String key = "";
-          String value = "";
-
-          if (path.indexOf('?') > 0)
-          {
-            key = path.substring(path.indexOf('?') + 1, path.indexOf('='));
-            value = path.substring(path.indexOf('=') + 1);
-            path = path.substring(0, path.indexOf('?'));
-          }
-
-          processRequest(client, method, path, key, value);
-          httpBuffer = "";
-          break;
-        }
-      }
-    }
-    delay(1);
-    client.stop();
-  }
-}
-
-#pragma endregion
-// ******************************************* END WEB SERVER *************************************************
 
 // ******************************************* BEGIN PLEX COVER ART *******************************************
 #pragma region PLEX_COVER_ART
@@ -504,6 +417,13 @@ void getAlbumArt()
                 // Check if the current album art URL is different from the last one
                 if (coverArtURL != lastAlbumArtURL)
                 {
+                  // Delete old cover art
+                  if (SPIFFS.exists(ALBUM_ART) == true)
+                  {
+                    Serial.println("Removing existing image");
+                    SPIFFS.remove(ALBUM_ART);
+                  }
+
                   albumArtChanged = true;
                   // Allocate a character array with extra space for null-terminator
                   char charArray[coverArtURL.length() + 1];
@@ -546,6 +466,109 @@ void getAlbumArt()
 
 #pragma endregion
 // ******************************************* END PLEX COVER ART *********************************************
+
+// ******************************************* BEGIN WEB SERVER ***********************************************
+#pragma region WEBSERVER
+
+#include <WebServer.h>
+#include <ESPmDNS.h>
+#include <Update.h>
+#include "PMDWebPage.h"
+
+WiFiServer server(80);
+
+String httpBuffer;
+bool force_restart;
+const char *HEADER_TEMPLATE_D = "X-%s: %d\r\n";
+const char *HEADER_TEMPLATE_S = "X-%s: %s\r\n";
+
+void processRequest(WiFiClient client, String method, String path, String key, String value)
+{
+  if (method == "GET" && path == "/")
+  {
+    client.println("HTTP/1.0 200 OK");
+    client.println("Content-Type: text/html");
+    client.println();
+    client.println(SETTINGS_PAGE);
+  }
+  else if (method == "POST" && path == "/restart")
+  {
+    client.println("HTTP/1.0 204 No Content");
+    force_restart = true;
+  }
+  else if (method == "POST" && path == "/set")
+  {
+    loadPreferences();
+
+    if (key == PREF_SELECTED_THEME)
+    {
+      selectedTheme = value.toInt();
+      if (selectedTheme != currentlyRunningTheme)
+      {
+        lastAlbumArtURL = "";
+
+        client.println("HTTP/1.0 204 No Content");
+        savePreferences();
+        currentlyRunningTheme = selectedTheme;
+
+        clearImage();
+        printCenter("REFRESHING..", 30);
+        delay(2000);
+        // force_restart = true;
+        return;
+      }
+    }
+    client.println("HTTP/1.0 204 No Content");
+  }
+}
+
+void handleHttpRequest()
+{
+  if (force_restart)
+  {
+    restartDevice();
+  }
+
+  WiFiClient client = server.available();
+  if (client)
+  {
+    while (client.connected())
+    {
+      if (client.available())
+      {
+        char c = client.read();
+        httpBuffer.concat(c);
+
+        if (c == '\n')
+        {
+          uint8_t method_pos = httpBuffer.indexOf(' ');
+          uint8_t path_pos = httpBuffer.indexOf(' ', method_pos + 1);
+
+          String method = httpBuffer.substring(0, method_pos);
+          String path = httpBuffer.substring(method_pos + 1, path_pos);
+          String key = "";
+          String value = "";
+
+          if (path.indexOf('?') > 0)
+          {
+            key = path.substring(path.indexOf('?') + 1, path.indexOf('='));
+            value = path.substring(path.indexOf('=') + 1);
+            path = path.substring(0, path.indexOf('?'));
+          }
+
+          processRequest(client, method, path, key, value);
+          httpBuffer = "";
+          break;
+        }
+      }
+    }
+    delay(1);
+    client.stop();
+  }
+}
+
+#pragma endregion
+// ******************************************* END WEB SERVER *************************************************
 
 // ******************************************* BEGIN AUDIO VISUALIZER *****************************************
 #pragma region AUDIO_VISUALIZER
@@ -1021,10 +1044,6 @@ void loopAudioVisualizer()
 // ******************************************* BEGIN MAIN *****************************************************
 #pragma region MAIN
 
-#define AUDIO_VISUALIZER_THEME 100
-#define PLEX_COVER_ART_THEME 200
-#define GIF_ART_THEME 210
-
 int failedConnectionAttempts = 0;
 const int MAX_FAILED_ATTEMPTS = 5;
 
@@ -1046,25 +1065,25 @@ void setup()
 
   preferences.begin("PMD", false);
   selectedTheme = preferences.getUInt(PREF_SELECTED_THEME, PLEX_COVER_ART_THEME);
+  currentlyRunningTheme = selectedTheme;
 
   if (selectedTheme == AUDIO_VISUALIZER_THEME)
   {
     Serial.println("Setting up Audio Input I2S");
-    setupI2S();
     Serial.println("Audio input setup completed");
     printCenter("MUSIC", 20);
     printCenter("VISUALIZER", 30);
-    delay(3000);
   }
   else if (selectedTheme == PLEX_COVER_ART_THEME)
   {
-    fetchPlexConfigFile();
 
     printCenter(" PLEX ", 10);
     printCenter("MATRIX", 20);
     printCenter("DISPLAY", 30);
-    delay(3000);
   }
+
+  setupI2S();
+  fetchPlexConfigFile();
 
   wifiConnect();
 
