@@ -474,8 +474,21 @@ void getAlbumArt()
       // Serial.println(payload);
       // Serial.println("*****************END PAYLOAD********************");
       // Parse the XML response to get the last track title, artist name, and thumbnail URL
+
+      int playerStateIndex = payload.indexOf("state=\"");
+
+      String playerState = "";
+      if (playerStateIndex != -1)
+      {
+        int stateStartIndex = playerStateIndex + 7; // Length of "state=\""
+        int stateEndIndex = payload.indexOf("\"", stateStartIndex);
+        playerState = payload.substring(stateStartIndex, stateEndIndex);
+      }
+      Serial.print("player state = ");
+      Serial.println(playerState);
+
       int lastTrackIndex = payload.lastIndexOf("<Track ");
-      if (lastTrackIndex != -1)
+      if (lastTrackIndex != -1 && playerState == "playing")
       {
         // Extract the last track XML block
         int trackEndIndex = payload.indexOf("</Track>", lastTrackIndex);
@@ -550,6 +563,8 @@ void getAlbumArt()
       else
       {
         Serial.println("No track is currently playing.");
+        lastAlbumArtURL = "";
+        clearImage();
         printCenter("NO TRACK IS", 20);
         printCenter("CURRENTLY", 30);
         printCenter("PLAYING", 40);
@@ -558,6 +573,8 @@ void getAlbumArt()
     else
     {
       Serial.println("HTTP request failed");
+      lastAlbumArtURL = "";
+      clearImage();
       printCenter("HTTP REQUEST", 30);
       printCenter("FAILED", 40);
     }
@@ -566,6 +583,8 @@ void getAlbumArt()
   else
   {
     Serial.println("Unable to connect to Plex server");
+    lastAlbumArtURL = "";
+    clearImage();
     printCenter("UNABLE TO", 20);
     printCenter("CONNECT TO", 30);
     printCenter("PLEX SERVER", 40);
