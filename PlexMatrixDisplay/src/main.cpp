@@ -114,7 +114,7 @@ void scrollingPrintCenter(const char *buf, int y) {
   uint16_t w, h;
   uint16_t textWidth;
   int clearOriginY = y - 5;
-  int clearHeight = 8;
+  int clearHeight = 7;
 
   // Set the font and get the width of the text
   dma_display->setFont(&Picopixel);
@@ -170,7 +170,7 @@ int drawImagefromFile(const char *imageFileUri)
   lTime = millis();
   jpeg.open((const char *)imageFileUri, myOpen, myClose, myRead, mySeek, JPEGDraw);
   // int decodeStatus = jpeg.decode(0, 0, 0);
-  int decodeStatus = jpeg.decode(8, 8, 0);
+  int decodeStatus = jpeg.decode(4, 7, 0);
   jpeg.close();
   Serial.print("Time taken to decode and display Image (ms): ");
   Serial.println(millis() - lTime);
@@ -384,6 +384,7 @@ String decodeHtmlEntities(String text) {
   decodedText.replace("&lt;", "<");
   decodedText.replace("&gt;", ">");
   decodedText.replace("&#8217;", "'");
+  decodedText.replace("&#8216;", "'");
   decodedText.replace("&#39;", "'");
   // Add more replacements as needed
   
@@ -395,7 +396,7 @@ void downloadCoverArt(const char *relativeUrl, const char *trackTitle, const cha
   HTTPClient http;
   // Construct the full URL by appending the relative URL to the base URL
   // String imageUrl = "http://" + String(plexServerIp) + ":" + String(plexServerPort) + "/photo/:/transcode?width=64&height=64&url=" + String(relativeUrl);
-  String imageUrl = "http://" + String(plexServerIp) + ":" + String(plexServerPort) + "/photo/:/transcode?width=48&height=48&url=" + String(relativeUrl);
+  String imageUrl = "http://" + String(plexServerIp) + ":" + String(plexServerPort) + "/photo/:/transcode?width=50&height=50&url=" + String(relativeUrl);
   // Send GET request to the image URL
   if (http.begin(imageUrl))
   {
@@ -418,8 +419,8 @@ void downloadCoverArt(const char *relativeUrl, const char *trackTitle, const cha
       {
         Serial.println("Image downloaded and saved successfully");
         drawImagefromFile(ALBUM_ART);
-        scrollingPrintCenter(trackTitle, 5);
         printCenter(artistName, 62);
+        scrollingPrintCenter(trackTitle, 5);
       }
       else
       {
