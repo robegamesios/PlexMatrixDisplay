@@ -551,7 +551,7 @@ void downloadGifArt() {
   HTTPClient http;
 
   // Specify the URL of the GIF file on raw.githubusercontent.com
-  String gifURL = "https://raw.githubusercontent.com/robegamesios/PlexMatrixDisplay/db29366cae2671a4acee1b9272338ad7edd941f6/shared/gifs/ezgif.com-pacmn.gif";
+  String gifURL = "https://raw.githubusercontent.com/robegamesios/PlexMatrixDisplay/main/shared/gifs/ezgif.com-pacmn.gif";
 
   // Start the HTTP request to download the GIF file
   if (http.begin(gifURL)) {
@@ -1456,7 +1456,7 @@ void setup()
 
   server.begin();
 
-  // downloadGifArt();
+  downloadGifArt();
 }
 
 void loop()
@@ -1465,15 +1465,15 @@ void loop()
   {
     handleHttpRequest();
 
-    if (selectedTheme == AUDIO_VISUALIZER_THEME)
-    {
-      loopAudioVisualizer();
-    }
-    else if (selectedTheme == PLEX_COVER_ART_THEME)
-    {
-      getAlbumArt();
-      delay(5000); // Check every 5 seconds
-    }
+    // if (selectedTheme == AUDIO_VISUALIZER_THEME)
+    // {
+    //   loopAudioVisualizer();
+    // }
+    // else if (selectedTheme == PLEX_COVER_ART_THEME)
+    // {
+    //   getAlbumArt();
+    //   delay(5000); // Check every 5 seconds
+    // }
   }
 }
 
