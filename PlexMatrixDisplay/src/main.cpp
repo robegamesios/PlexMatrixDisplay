@@ -737,8 +737,9 @@ void getAlbumArt()
                 char trackTitleCharArray[cleanTrackTitle.length() + 1];
                 cleanTrackTitle.toCharArray(trackTitleCharArray, cleanTrackTitle.length() + 1);
 
-                char artistNameCharArray[artistName.length() + 1];
-                artistName.toCharArray(artistNameCharArray, artistName.length() + 1);
+                String cleanArtistName = decodeHtmlEntities(artistName);
+                char artistNameCharArray[cleanArtistName.length() + 1];
+                cleanArtistName.toCharArray(artistNameCharArray, artistName.length() + 1);
 
                 // Check if the current album art URL is different from the last one
                 if (coverArtURL != lastAlbumArtURL)
