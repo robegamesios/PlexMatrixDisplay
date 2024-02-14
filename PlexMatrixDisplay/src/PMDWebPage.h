@@ -66,49 +66,49 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
 <div class="card">
     <h2 class="card-title">Music Visualizer</h2>
     <p class="card-description">Shows audio spectrum that syncs with your music.</p>
-    <img class="card-image" src="https://github.com/robegamesios/clockwise/blob/0b6b92c9c09d9c3aae5ba50888654250d2410f3b/firmware/lib/clockfaces/thumbnails/audio_visualizer.jpg?raw=true" alt="Music Visualizer">
+    <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/a21c8d41fbd933d12098baaacfc8a5523ff8d2c5/thumbnails/audio_visualizer.jpg?raw=true" alt="Music Visualizer">
     <a class="update-button" onclick="updatePreference('selectedTheme', 100)">Select</a>
 </div>
 <div class="card">
     <h2 class="card-title">Plex Music Cover Art</h2>
     <p class="card-description">Displays Plex Music Cover Art.</p>
-    <img class="card-image" src="https://github.com/robegamesios/clockwise/blob/0b6b92c9c09d9c3aae5ba50888654250d2410f3b/firmware/lib/clockfaces/thumbnails/audio_visualizer.jpg?raw=true" alt="Plex Music Cover Art">
+    <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/a21c8d41fbd933d12098baaacfc8a5523ff8d2c5/thumbnails/plex_cover_art.jpg?raw=true" alt="Plex Music Cover Art">
     <a class="update-button" onclick="updatePreference('selectedTheme', 200)">Select</a>
 </div>
 <div class="card">
     <h2 class="card-title">GIF Art</h2>
     <p class="card-description">Display your favorite GIF Art.</p>
-    <img class="card-image" src="https://github.com/robegamesios/clockwise/blob/0b6b92c9c09d9c3aae5ba50888654250d2410f3b/firmware/lib/clockfaces/thumbnails/audio_visualizer.jpg?raw=true" alt="Gif Art">
+    <img class="card-image" src="https://github.com/robegamesios/clockwise/PlexMatrixDisplay/main/thumbnails/audio_visualizer.jpg?raw=true" alt="Gif Art">
     <a class="update-button" onclick="updatePreference('selectedTheme', 210)">Select</a>
 </div>
 <div class="card">
     <h2 class="card-title">Canvas Clock</h2>
     <p class="card-description">Customizable canvas for gif and images.</p>
-    <img class="card-image" src="https://github.com/robegamesios/clockwise/blob/609c24bcefe1ac681b54db0fb495e52a5ae43f28/firmware/lib/clockfaces/thumbnails/canvas_clock.jpg?raw=true" alt="Canvas Clock">
+    <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/a21c8d41fbd933d12098baaacfc8a5523ff8d2c5/thumbnails/canvas_clock.jpg?raw=true" alt="Canvas Clock">
     <a class="update-button" onclick="updatePreference('selectedTheme', 0)">Select</a>
 </div>
 <div class="card">
     <h2 class="card-title">Mario Bros Clock</h2>
     <p class="card-description">Mario jumps and bumps the block every minute.</p>
-    <img class="card-image" src="https://github.com/robegamesios/clockwise/blob/54d4820e58064194dd3975894a8ead9a786b0938/firmware/lib/clockfaces/thumbnails/mario_bros_clock.jpg?raw=true" alt="Mario Bros Clock">
+    <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/a21c8d41fbd933d12098baaacfc8a5523ff8d2c5/thumbnails/mario_bros_clock.jpg?raw=true" alt="Mario Bros Clock">
     <a class="update-button" onclick="updatePreference('selectedTheme', 1)">Select</a>
 </div>
 <div class="card">
     <h2 class="card-title">Pacman Clock</h2>
     <p class="card-description">Pacman runs around eating pellets.</p>
-    <img class="card-image" src="https://github.com/robegamesios/clockwise/blob/609c24bcefe1ac681b54db0fb495e52a5ae43f28/firmware/lib/clockfaces/thumbnails/pacman_clock.jpg?raw=true" alt="Pacman Clock">
+    <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/a21c8d41fbd933d12098baaacfc8a5523ff8d2c5/thumbnails/pacman_clock.jpg?raw=true" alt="Pacman Clock">
     <a class="update-button" onclick="updatePreference('selectedTheme', 2)">Select</a>
 </div>
 <div class="card">
     <h2 class="card-title">Time in Words Clock</h2>
     <p class="card-description">Time displayed in words. Includes date.</p>
-    <img class="card-image" src="https://github.com/robegamesios/clockwise/blob/d4313923b46cfc8e2b15ab02cce5c3b6fa60e00b/firmware/lib/clockfaces/thumbnails/time_in_words_clock.jpg?raw=true" alt="Time in Words Clock">
+    <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/a21c8d41fbd933d12098baaacfc8a5523ff8d2c5/thumbnails/time_in_words_clock.jpg?raw=true" alt="Time in Words Clock">
     <a class="update-button" onclick="updatePreference('selectedTheme', 3)">Select</a>
 </div>
 <div class="card">
     <h2 class="card-title">World Map Clock</h2>
     <p class="card-description">World Map with time.<br><br></p>
-    <img class="card-image" src="https://github.com/robegamesios/clockwise/blob/5c71dbe6948a2417c0b90c0a564394bc5959bb07/firmware/lib/clockfaces/thumbnails/world_map_clock.jpg?raw=true" alt="World Map Clock">
+    <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/a21c8d41fbd933d12098baaacfc8a5523ff8d2c5/thumbnails/world_map_clock.jpg?raw=true" alt="World Map Clock">
     <a class="update-button" onclick="updatePreference('selectedTheme', 4)">Select</a>
 </div>
 <div class="card">
