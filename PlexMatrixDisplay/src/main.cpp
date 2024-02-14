@@ -109,27 +109,67 @@ void printCenter(const char *buf, int y)
   dma_display->print(buf);
 }
 
+enum ScrollState
+{
+  SCROLL_IDLE,
+  SCROLL_INIT,
+  SCROLL_RUNNING
+};
+
+char previousScrollingText[100] = "";
+
 void scrollingPrintCenter(const char *buf, int y)
 {
-  int16_t x1, y1;
-  uint16_t w, h;
-  uint16_t textWidth;
-  int clearOriginY = y - 5;
-  int clearHeight = 7;
+  static int16_t x1, y1;
+  static uint16_t w, h;
+  static uint16_t textWidth;
+  static int clearOriginY = y - 5;
+  static int clearHeight = 7;
+  static int16_t xPos;
+  static unsigned long lastScrollTime;
+  static int scrollSpeed = 100; // Adjust scroll speed here (milliseconds per step)
+  static ScrollState state = SCROLL_IDLE;
 
-  // Set the font and get the width of the text
-  dma_display->setFont(&Picopixel);
-  dma_display->getTextBounds(buf, 0, y, &x1, &y1, &w, &h);
-  textWidth = w;
-
-  // If the text width is greater than the screen width, start scrolling
-  if (textWidth > PANEL_WIDTH)
+  switch (state)
   {
-    // Initialize scrolling position
-    int16_t xPos = PANEL_WIDTH;
+  case SCROLL_IDLE:
+    // Set the font and get the width of the text
+    dma_display->setFont(&Picopixel);
+    dma_display->getTextBounds(buf, 0, y, &x1, &y1, &w, &h);
+    textWidth = w;
 
-    // Loop for scrolling
-    while (xPos > -textWidth)
+    // If the text width is greater than the screen width, start scrolling
+    if (textWidth > PANEL_WIDTH)
+    {
+      // Initialize scrolling position
+      xPos = PANEL_WIDTH;
+      lastScrollTime = millis();
+      state = SCROLL_RUNNING;
+    }
+    else
+    {
+      if (strcmp(previousScrollingText, buf) != 0)
+      {
+        // If the text width is not greater than the screen width, print it centered
+        // Clear part of the screen for the scrolling text
+        displayRect(0, clearOriginY, PANEL_WIDTH, clearHeight, 0);
+
+        dma_display->setCursor(32 - (w / 2), y);
+        dma_display->setTextColor(0xffff);
+        dma_display->print(buf);
+        state = SCROLL_IDLE; // Reset state to IDLE if no scrolling is needed
+        strcpy(previousScrollingText, buf);
+      }
+    }
+    break;
+
+  case SCROLL_RUNNING:
+    // Calculate time since last scroll
+    unsigned long currentTime = millis();
+    unsigned long elapsedTime = currentTime - lastScrollTime;
+
+    // If enough time has elapsed, scroll the text
+    if (elapsedTime >= scrollSpeed)
     {
       // Clear part of the screen for the scrolling text
       displayRect(0, clearOriginY, PANEL_WIDTH, clearHeight, 0);
@@ -142,31 +182,20 @@ void scrollingPrintCenter(const char *buf, int y)
       dma_display->setTextColor(0xffff);
       dma_display->print(buf);
 
-      // Delay for a short period to control the scrolling speed
-      delay(100);
+      // Update last scroll time
+      lastScrollTime = currentTime;
 
       // Move the text to the left
       xPos--;
 
       if (xPos == -textWidth)
       {
-        // Not using rescrolling right now, coz it blocks the loop, instead just using the loop delay to restart scrolling
         // If the text has scrolled completely off the screen, reset xPos to start over
-        // xPos = PANEL_WIDTH;
-
-        displayRect(0, clearOriginY, PANEL_WIDTH, clearHeight, 0);
+        xPos = PANEL_WIDTH;
+        state = SCROLL_IDLE;
       }
     }
-  }
-  else
-  {
-    // If the text width is not greater than the screen width, print it centered
-    // Clear part of the screen for the scrolling text
-    displayRect(0, clearOriginY, PANEL_WIDTH, clearHeight, 0);
-
-    dma_display->setCursor(32 - (w / 2), y);
-    dma_display->setTextColor(0xffff);
-    dma_display->print(buf);
+    break;
   }
 }
 
@@ -328,7 +357,6 @@ void wifiConnect()
   {
     Serial.println("Failed to connect");
     printCenter("FAILED to Connect", 30);
-    delay(3000);
     restartDevice();
   }
   else
@@ -381,6 +409,7 @@ void loadPreferences()
 // ******************************************* BEGIN PLEX COVER ART *******************************************
 #pragma region PLEX_COVER_ART
 
+String scrollingText = "";
 String lastAlbumArtURL = ""; // Variable to store the last downloaded album art URL
 
 String decodeHtmlEntities(String text)
@@ -397,6 +426,12 @@ String decodeHtmlEntities(String text)
   // Add more replacements as needed
 
   return decodedText;
+}
+
+void resetPlexVariables()
+{
+  scrollingText = "";
+  lastAlbumArtURL = "";
 }
 
 void deleteAlbumArt()
@@ -437,7 +472,7 @@ void downloadCoverArt(const char *relativeUrl, const char *trackTitle, const cha
         Serial.println("Image downloaded and saved successfully");
         drawImagefromFile(ALBUM_ART);
         printCenter(artistName, 62);
-        scrollingPrintCenter(trackTitle, 5);
+        scrollingText = trackTitle;
       }
       else
       {
@@ -516,9 +551,9 @@ void getAlbumArt()
               // Display or use the last track title, artist name, and thumbnail URL as needed
               if (!trackTitle.isEmpty() && !artistName.isEmpty() && !coverArtURL.isEmpty())
               {
-                Serial.println("Last Track Title: " + trackTitle);
-                Serial.println("Artist Name: " + artistName);
-                Serial.println("Last Thumbnail URL: " + coverArtURL);
+                // Serial.println("Last Track Title: " + trackTitle);
+                // Serial.println("Artist Name: " + artistName);
+                // Serial.println("Last Thumbnail URL: " + coverArtURL);
 
                 String cleanTrackTitle = decodeHtmlEntities(trackTitle);
                 char trackTitleCharArray[cleanTrackTitle.length() + 1];
@@ -546,10 +581,10 @@ void getAlbumArt()
                 }
                 else
                 {
-                  Serial.println("Album art hasn't changed. Skipping download.");
+                  // Serial.println("Album art hasn't changed. Skipping download.");
 
                   // Trigger scrolling song title
-                  scrollingPrintCenter(trackTitleCharArray, 5);
+                  scrollingText = trackTitleCharArray;
                 }
               }
               else
@@ -563,7 +598,7 @@ void getAlbumArt()
       else
       {
         Serial.println("No track is currently playing.");
-        lastAlbumArtURL = "";
+        resetPlexVariables();
         clearImage();
         printCenter("NO TRACK IS", 20);
         printCenter("CURRENTLY", 30);
@@ -573,7 +608,7 @@ void getAlbumArt()
     else
     {
       Serial.println("HTTP request failed");
-      lastAlbumArtURL = "";
+      resetPlexVariables();
       clearImage();
       printCenter("HTTP REQUEST", 30);
       printCenter("FAILED", 40);
@@ -583,7 +618,7 @@ void getAlbumArt()
   else
   {
     Serial.println("Unable to connect to Plex server");
-    lastAlbumArtURL = "";
+    resetPlexVariables();
     clearImage();
     printCenter("UNABLE TO", 20);
     printCenter("CONNECT TO", 30);
@@ -632,7 +667,7 @@ void processRequest(WiFiClient client, String method, String path, String key, S
       selectedTheme = value.toInt();
       if (selectedTheme != currentlyRunningTheme)
       {
-        lastAlbumArtURL = "";
+        resetPlexVariables();
 
         client.println("HTTP/1.0 204 No Content");
         savePreferences();
@@ -642,7 +677,7 @@ void processRequest(WiFiClient client, String method, String path, String key, S
         printCenter("REFRESHING..", 30);
         delay(2000);
 
-        // force_restart = true; 
+        // force_restart = true;
         return;
       }
     }
@@ -879,17 +914,6 @@ void make_fire()
       dma_display->drawPixelRGB888(j, rows - i, COlsplit.r, COlsplit.g, COlsplit.b);
     }
   }
-}
-
-void DisplayPrint(char *text)
-{
-  dma_display->fillRect(8, 8, kMatrixWidth - 16, 11, dma_display->color444(0, 0, 0));
-  dma_display->setTextSize(1);
-  dma_display->setTextWrap(false);
-  dma_display->setCursor(10, 10);
-  dma_display->print(text);
-  delay(1000);
-  dma_display->fillRect(8, 8, kMatrixWidth - 16, 11, dma_display->color444(0, 0, 0));
 }
 
 void loopAudioVisualizer()
@@ -1176,6 +1200,8 @@ void loopAudioVisualizer()
 
 int failedConnectionAttempts = 0;
 const int MAX_FAILED_ATTEMPTS = 5;
+unsigned long lastAlbumArtUpdateTime = 0;
+const unsigned long albumArtUpdateInterval = 5000; // 5000 milliseconds
 
 void update_progress(int cur, int total)
 {
@@ -1253,7 +1279,6 @@ void setup()
   clearImage();
   Serial.println("\r\nInitialisation done.");
 
-  return;
   if (selectedTheme == GIF_ART_THEME)
   {
     Serial.print("will update firmware to canvasPlusFirmware");
@@ -1315,8 +1340,13 @@ void loop()
     else
     {
       // Default to Plex cover art theme
-      getAlbumArt();
-      delay(5000); // Check every 5 seconds
+      unsigned long currentMillis = millis();
+      if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval)
+      {
+        lastAlbumArtUpdateTime = currentMillis;
+        getAlbumArt();
+      }
+      scrollingPrintCenter(scrollingText.c_str(), 5);
     }
   }
 }
