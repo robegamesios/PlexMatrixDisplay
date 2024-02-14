@@ -72,7 +72,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
 <div class="card">
     <h2 class="card-title">Plex Music Cover Art</h2>
     <p class="card-description">Displays Plex Music Cover Art.</p>
-    <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/a21c8d41fbd933d12098baaacfc8a5523ff8d2c5/thumbnails/plex_cover_art_2.jpg?raw=true" alt="Plex Music Cover Art">
+    <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/7c453b0f043ca22062ad4929961196badc97c16b/thumbnails/plex_cover_art_2.jpg?raw=true" alt="Plex Music Cover Art">
     <a class="update-button" onclick="updatePreference('selectedTheme', 200)">Select</a>
 </div>
 <div class="card">
