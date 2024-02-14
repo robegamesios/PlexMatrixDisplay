@@ -176,7 +176,7 @@ int drawImagefromFile(const char *imageFileUri)
   lTime = millis();
   jpeg.open((const char *)imageFileUri, myOpen, myClose, myRead, mySeek, JPEGDraw);
   // int decodeStatus = jpeg.decode(0, 0, 0);
-  int decodeStatus = jpeg.decode(4, 7, 0);
+  int decodeStatus = jpeg.decode(8, 8, 0);
   jpeg.close();
   Serial.print("Time taken to decode and display Image (ms): ");
   Serial.println(millis() - lTime);
@@ -209,6 +209,7 @@ bool shouldSaveConfig = false;
 
 void restartDevice()
 {
+  clearImage();
   printCenter("REBOOTING..", 30);
   delay(3000);
   ESP.restart();
@@ -412,7 +413,7 @@ void downloadCoverArt(const char *relativeUrl, const char *trackTitle, const cha
   HTTPClient http;
   // Construct the full URL by appending the relative URL to the base URL
   // String imageUrl = "http://" + String(plexServerIp) + ":" + String(plexServerPort) + "/photo/:/transcode?width=64&height=64&url=" + String(relativeUrl);
-  String imageUrl = "http://" + String(plexServerIp) + ":" + String(plexServerPort) + "/photo/:/transcode?width=50&height=50&url=" + String(relativeUrl);
+  String imageUrl = "http://" + String(plexServerIp) + ":" + String(plexServerPort) + "/photo/:/transcode?width=48&height=48&url=" + String(relativeUrl);
   // Send GET request to the image URL
   if (http.begin(imageUrl))
   {
@@ -640,7 +641,8 @@ void processRequest(WiFiClient client, String method, String path, String key, S
         clearImage();
         printCenter("REFRESHING..", 30);
         delay(2000);
-        // force_restart = true;
+
+        // force_restart = true; 
         return;
       }
     }
@@ -1170,8 +1172,22 @@ void loopAudioVisualizer()
 // ******************************************* BEGIN MAIN *****************************************************
 #pragma region MAIN
 
+#include <HTTPUpdate.h>
+
 int failedConnectionAttempts = 0;
 const int MAX_FAILED_ATTEMPTS = 5;
+
+void update_progress(int cur, int total)
+{
+  // Clear screen
+  displayRect(0, 30, PANEL_WIDTH, 10, 0);
+
+  // Display progress
+  float progress = cur * 100.0 / total;
+  char buffer[30];
+  sprintf(buffer, "%.0f%%", progress);
+  printCenter(buffer, 40);
+}
 
 void setup()
 {
@@ -1237,6 +1253,52 @@ void setup()
   clearImage();
   Serial.println("\r\nInitialisation done.");
 
+  return;
+  if (selectedTheme == GIF_ART_THEME)
+  {
+    Serial.print("will update firmware to canvasPlusFirmware");
+    // update firmware to canvas
+    WiFiClientSecure client;
+    client.setInsecure();
+
+    // Reading data over SSL may be slow, use an adequate timeout
+    client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
+
+    // Display IP address
+    char ipAddressLabel[16];
+    sprintf(ipAddressLabel, "IP Address:");
+    printCenter(ipAddressLabel, 5);
+
+    IPAddress ipAddress = WiFi.localIP();
+    char ipAddressString[16];
+    sprintf(ipAddressString, "%s", ipAddress.toString().c_str());
+    printCenter(ipAddressString, 15);
+
+    // Display Loading text
+    const char *loadingText = "Loading..";
+    printCenter(loadingText, 30);
+
+    httpUpdate.onProgress(update_progress);
+
+    t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/clock-club/main/binFiles/canvasPlusFirmware.bin");
+
+    switch (ret)
+    {
+    case HTTP_UPDATE_FAILED:
+      Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+      break;
+
+    case HTTP_UPDATE_NO_UPDATES:
+      Serial.println("HTTP_UPDATE_NO_UPDATES");
+      break;
+
+    case HTTP_UPDATE_OK:
+      Serial.println("HTTP_UPDATE_OK");
+      break;
+    }
+    return;
+  }
+
   server.begin();
 }
 
@@ -1250,8 +1312,9 @@ void loop()
     {
       loopAudioVisualizer();
     }
-    else if (selectedTheme == PLEX_COVER_ART_THEME)
+    else
     {
+      // Default to Plex cover art theme
       getAlbumArt();
       delay(5000); // Check every 5 seconds
     }
