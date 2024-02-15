@@ -67,7 +67,25 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
     <h2 class="card-title">Music Visualizer</h2>
     <p class="card-description">Shows audio spectrum that syncs with your music.</p>
     <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/a21c8d41fbd933d12098baaacfc8a5523ff8d2c5/thumbnails/audio_visualizer.jpg?raw=true" alt="Music Visualizer">
+    <br><br>
+    <select id="optionSelect" name='option'>
+    <option value='13' title='Select Visualizer Pattern'>Select Visualizer Pattern</option>
+    <option value='12' title='Auto Change every 1 Min'>Auto Change every 1 Min</option>
+    <option value='0' title='Boxed Bars'>Boxed Bars</option>
+    <option value='1' title='Boxed Bars 2'>Boxed Bars 2</option>
+    <option value='2' title='Boxed Bars 3'>Boxed Bars 3</option>
+    <option value='3' title='Red Bars'>Red Bars</option>
+    <option value='4' title='Color Bars'>Color Bars</option>
+    <option value='5' title='=Twins'>Twins</option>
+    <option value='6' title='Twins 2'>Twins 2</option>
+    <option value='7' title='Tri Bars'>Tri Bars</option>
+    <option value='8' title='Tri Bars 2'>Tri Bars 2</option>
+    <option value='9' title='Center Bars'>Center Bars</option>
+    <option value='10' title='Center Bars 2'>Center Bars 2</option>
+    <option value='11' title='Black Bars'>Black Bars</option>
+    </select><br><br>
     <a class="update-button" onclick="updatePreference('selectedTheme', 100)">Select</a>
+    
 </div>
 <div class="card">
     <h2 class="card-title">Plex Music Cover Art</h2>
@@ -273,6 +291,25 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
       document.getElementById("fw-version").innerHTML = "<i class='fa fa-code-fork'></i> Firmware v" + settings.cw_fw_version
     }
 
+    document.getElementById('optionSelect').addEventListener('change', function() {
+        var selectedValue = this.value;
+        var selectedOption = this.options[this.selectedIndex];
+        var title = selectedOption.title;
+
+        const xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function () {
+          if (this.readyState == 4 && this.status >= 200 && this.status < 299) {
+            document.getElementById('status').style.display = 'block';
+          }
+        };
+        xhr.open('POST', '/set?avPattern' + '=' + selectedValue);
+        xhr.send();
+
+        setTimeout(() => {
+          document.getElementById('status').style.display = 'none';
+        }, 2000);        
+    });
+
     function updatePreference(key, value) {
       const xhr = new XMLHttpRequest();
       xhr.onreadystatechange = function () {
@@ -349,7 +386,6 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
 </body>
 </html>
 )"""";
-
 
 /* Style */
 String style =
