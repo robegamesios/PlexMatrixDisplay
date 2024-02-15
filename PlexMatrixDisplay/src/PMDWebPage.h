@@ -78,7 +78,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
 <div class="card">
     <h2 class="card-title">GIF Art</h2>
     <p class="card-description">Display your favorite GIF Art.</p>
-    <img class="card-image" src="https://github.com/robegamesios/clockwise/PlexMatrixDisplay/main/thumbnails/audio_visualizer.jpg?raw=true" alt="Gif Art">
+    <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/6b1411013523c5a42cba7f045a392a8cfde426cb/thumbnails/gif_art.jpg?raw=true" alt="Gif Art">
     <a class="update-button" onclick="updatePreference('selectedTheme', 210)">Select</a>
 </div>
 <div class="card">

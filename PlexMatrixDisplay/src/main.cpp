@@ -514,6 +514,7 @@ AnimatedGIF gif;
 // fs::File f;
 int x_offset, y_offset;
 String lastGifFilename = "";
+bool shouldShowGifArt = false;
 
 // Draw a line of image directly on the LED Matrix
 void GIFDraw(GIFDRAW *pDraw)
@@ -641,7 +642,7 @@ int32_t GIFSeekFile(GIFFILE *pFile, int32_t iPosition)
   f->seek(iPosition);
   pFile->iPos = (int32_t)f->position();
   i = micros() - i;
-  Serial.printf("Seek time = %d us\n", i);
+  // Serial.printf("Seek time = %d us\n", i);
   return pFile->iPos;
 }
 
@@ -654,12 +655,29 @@ void deleteGifArt()
   }
 }
 
+enum GIFState
+{
+  STATE_IDLE,
+  STATE_OPEN_GIF,
+  STATE_PLAY_GIF,
+  STATE_CLOSE_GIF,
+};
+
+GIFState gifState = STATE_IDLE;
+
 void showGIF()
 {
-  while (selectedTheme == GIF_ART_THEME) // Loop indefinitely
-  {
-    handleHttpRequest();
 
+  switch (gifState)
+  {
+  case STATE_IDLE:
+    if (SPIFFS.exists(GIF_ART))
+    {
+      gifState = STATE_OPEN_GIF;
+    }
+    break;
+
+  case STATE_OPEN_GIF:
     if (gif.open(GIF_ART, GIFOpenFile, GIFCloseFile, GIFReadFile, GIFSeekFile, GIFDraw))
     {
       x_offset = (MATRIX_WIDTH - gif.getCanvasWidth()) / 2;
@@ -668,25 +686,34 @@ void showGIF()
       y_offset = (MATRIX_HEIGHT - gif.getCanvasHeight()) / 2;
       if (y_offset < 0)
         y_offset = 0;
-      Serial.printf("Successfully opened GIF; Canvas size = %d x %d\n", gif.getCanvasWidth(), gif.getCanvasHeight());
-      Serial.flush();
-
-      // Play the GIF frames continuously
-      while (1)
-      {
-        // Play a single frame
-        if (!gif.playFrame(true, NULL))
-        {
-          // If the playback reaches the end, close and reopen the GIF file
-          gif.close();
-          break;
-        }
-      }
+      // Serial.printf("Successfully opened GIF; Canvas size = %d x %d\n", gif.getCanvasWidth(), gif.getCanvasHeight());
+      gifState = STATE_PLAY_GIF;
     }
     else
     {
       Serial.println("******** Failed to show GIF");
+      clearImage();
+      printCenter("FAILED TO", 20);
+      printCenter("SHOW GIF", 30);
+      gifState = STATE_IDLE;
     }
+    break;
+
+  case STATE_PLAY_GIF:
+    // Play a single frame
+    if (!gif.playFrame(true, NULL))
+    {
+      // If the playback reaches the end, close the GIF file
+      gif.close();
+      gifState = STATE_IDLE;
+    }
+    break;
+
+  case STATE_CLOSE_GIF:
+    // Close the GIF file
+    gif.close();
+    gifState = STATE_IDLE;
+    break;
   }
 }
 
@@ -699,9 +726,9 @@ void downloadGifArt(String filename)
   String baseURL = "https://raw.githubusercontent.com/robegamesios/PlexMatrixDisplay/main/shared/gifs/";
 
   // Construct the full URL by appending the filename to the base URL
-  String gifURL = "https://raw.githubusercontent.com/robegamesios/PlexMatrixDisplay/main/shared/gifs/bugcat-crowd.gif";
-  Serial.print("*************GIF url = ");
-  Serial.println(gifURL);
+  String gifURL = baseURL + filename + ".gif";
+  // Serial.print("*************GIF url = ");
+  // Serial.println(gifURL);
 
   // Start the HTTP request to download the GIF file
   if (http.begin(gifURL))
@@ -711,6 +738,9 @@ void downloadGifArt(String filename)
     // Check if the request was successful
     if (httpCode == HTTP_CODE_OK)
     {
+
+      deleteGifArt();
+
       // Open a file to save the downloaded GIF
       File file = SPIFFS.open(GIF_ART, FILE_WRITE);
       if (file)
@@ -722,23 +752,31 @@ void downloadGifArt(String filename)
         // Check if the file exists
         if (SPIFFS.exists(GIF_ART))
         {
-          // Show the downloaded GIF
-          showGIF();
+          Serial.println("Successfully downloaded and saved GIF file to SPIFFS");
         }
         else
         {
           Serial.println("Failed to save image to SPIFFS");
+          clearImage();
+          printCenter("FAILED TO", 20);
+          printCenter("SAVE IMAGE", 30);
         }
       }
       else
       {
         Serial.println("Failed to create file");
+        clearImage();
+        printCenter("FAILED TO", 20);
+        printCenter("CREATE FILE", 30);
       }
     }
     else
     {
       Serial.print("Failed to download image. HTTP error code: ");
       Serial.println(httpCode);
+      clearImage();
+      printCenter("HTTP ERROR", 20);
+      printCenter(String(httpCode).c_str(), 30);
     }
     // End the HTTP client
     http.end();
@@ -746,11 +784,11 @@ void downloadGifArt(String filename)
   else
   {
     Serial.println("Failed to connect to image URL");
+    clearImage();
+    printCenter("FAILED TO", 20);
+    printCenter("CONNECT TO", 30);
+    printCenter("IMAGE URL", 40);
   }
-}
-
-void getGifArt()
-{
 }
 
 #pragma endregion
@@ -763,8 +801,6 @@ void getGifArt()
 
 int failedConnectionAttempts = 0;
 const int MAX_FAILED_ATTEMPTS = 5;
-unsigned long lastAlbumArtUpdateTime = 0;
-const unsigned long albumArtUpdateInterval = 5000; // 5000 milliseconds
 
 void update_progress(int cur, int total)
 {
@@ -794,16 +830,11 @@ void setup()
     return;
   }
 
-  // Cleanup from last session
-  // deleteAlbumArt();
-
   preferences.begin("PMD", false);
   selectedTheme = preferences.getUInt(PREF_SELECTED_THEME, PLEX_COVER_ART_THEME);
   currentlyRunningTheme = selectedTheme;
 
   printCenter("GIF Art", 30);
-
-  // fetchPlexConfigFile();
 
   wifiConnect();
 
@@ -884,15 +915,7 @@ void loop()
   if (isConnected())
   {
     handleHttpRequest();
-
-    // Check album art every 5 seconds
-    unsigned long currentMillis = millis();
-    if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval)
-    {
-      lastAlbumArtUpdateTime = currentMillis;
-      // getAlbumArt();
-    }
-    // scrollingPrintCenter(scrollingText.c_str(), 7);
+    showGIF();
   }
 }
 
