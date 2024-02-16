@@ -1,6 +1,9 @@
 #define AUDIO_VISUALIZER_THEME 100
 #define PLEX_COVER_ART_THEME 200
 #define GIF_ART_THEME 210
+#define CLOCKWISE_CANVAS_THEME 0
+#define CLOCKWISE_MARIO_THEME 1
+#define CLOCKWISE_PACMAN_THEME 2
 
 // ******************************************* BEGIN MATRIX DISPLAY *******************************************
 #pragma region MATRIX_DISPLAY
@@ -338,7 +341,6 @@ void saveConfigCallback()
 void wifiConnect()
 {
   bool resp;
-  // resetWifi();
   wifiManager.setSaveConfigCallback(saveConfigCallback);
 
   WiFiManagerParameter plexServerIpParam(WM_PLEX_SERVER_IP_LABEL, "Plex Server IP Address", plexServerIp, 40);
@@ -391,6 +393,7 @@ boolean isConnected()
 Preferences preferences;
 const char *PREF_SELECTED_THEME = "selectedTheme";
 const char *PREF_AV_PATTERN = "avPattern";
+const char *PREF_GIF_ART_NAME = "gifArtName";
 const char *PREF_PLEX_CREDENTIALS = "plexCredentials";
 uint8_t selectedTheme;
 uint8_t currentlyRunningTheme;
@@ -1146,6 +1149,14 @@ void processRequest(WiFiClient client, String method, String path, String key, S
     client.println("HTTP/1.0 204 No Content");
     force_restart = true;
   }
+  else if (method == "POST" && path == "/reset-wifi")
+  {
+    client.println("HTTP/1.0 204 No Content");
+    resetWifi();
+    delay(1000);
+    force_restart = true;
+  }
+
   else if (method == "POST" && path == "/set")
   {
     loadPreferences();
@@ -1172,6 +1183,14 @@ void processRequest(WiFiClient client, String method, String path, String key, S
     {
       client.println("HTTP/1.0 204 No Content");
       updateAudioVisualizerSettings(value.toInt());
+      return;
+    }
+
+    if (key == PREF_GIF_ART_NAME)
+    {
+      String payload = value;
+      Serial.println("Received payload: " + payload);
+      client.println("HTTP/1.0 204 No Content");
       return;
     }
 
@@ -1205,7 +1224,6 @@ void processRequest(WiFiClient client, String method, String path, String key, S
       force_restart = true;
     }
   }
-  client.println("HTTP/1.0 204 No Content");
 }
 
 void handleHttpRequest()
@@ -1269,7 +1287,7 @@ const unsigned long albumArtUpdateInterval = 5000; // 5000 milliseconds
 void update_progress(int cur, int total)
 {
   // Clear screen
-  displayRect(0, 30, PANEL_WIDTH, 10, 0);
+  displayRect(0, 40, PANEL_WIDTH, 10, 0);
 
   // Display progress
   float progress = cur * 100.0 / total;
@@ -1301,19 +1319,7 @@ void setup()
   loadPreferences();
   currentlyRunningTheme = selectedTheme;
 
-  if (selectedTheme == AUDIO_VISUALIZER_THEME)
-  {
-    Serial.println("Setting up Audio Input I2S");
-    Serial.println("Audio input setup completed");
-    printCenter("MUSIC", 20);
-    printCenter("VISUALIZER", 30);
-  }
-  else if (selectedTheme == PLEX_COVER_ART_THEME)
-  {
-    printCenter(" PLEXAMP ", 10);
-    printCenter("MATRIX", 20);
-    printCenter("DISPLAY", 30);
-  }
+  printCenter("TUNEFRAME", 30);
 
   setupI2S();
   fetchPlexConfigFile();
@@ -1335,16 +1341,23 @@ void setup()
       restartDevice();
     }
   }
+
+  // Display IP address
+  IPAddress ipAddress = WiFi.localIP();
+  char ipAddressString[16];
+  sprintf(ipAddressString, "%s", ipAddress.toString().c_str());
+  printCenter(ipAddressString, 10);
+
   Serial.println("Connected to WiFi");
-  printCenter("Connected to WiFi.", 40);
-  delay(3000);
+  printCenter("Connected to WiFi.", 50);
+  delay(5000);
 
   clearImage();
   Serial.println("\r\nInitialisation done.");
 
   if (selectedTheme == GIF_ART_THEME)
   {
-    Serial.print("will update firmware to canvasPlusFirmware");
+    Serial.print("will update firmware to gifArtFirmware");
     // update firmware to canvas
     WiFiClientSecure client;
     client.setInsecure();
@@ -1353,22 +1366,57 @@ void setup()
     client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
 
     // Display IP address
-    char ipAddressLabel[16];
-    sprintf(ipAddressLabel, "IP Address:");
-    printCenter(ipAddressLabel, 5);
+    IPAddress ipAddress = WiFi.localIP();
+    char ipAddressString[16];
+    sprintf(ipAddressString, "%s", ipAddress.toString().c_str());
+    printCenter(ipAddressString, 10);
+
+    // Display Loading text
+    const char *loadingText = "Loading..";
+    printCenter(loadingText, 20);
+
+    httpUpdate.onProgress(update_progress);
+
+    t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/clock-club/main/binFiles/GifArtFirmware.bin");
+
+    switch (ret)
+    {
+    case HTTP_UPDATE_FAILED:
+      Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+      break;
+
+    case HTTP_UPDATE_NO_UPDATES:
+      Serial.println("HTTP_UPDATE_NO_UPDATES");
+      break;
+
+    case HTTP_UPDATE_OK:
+      Serial.println("HTTP_UPDATE_OK");
+      break;
+    }
+    return;
+  }
+  else if (selectedTheme == CLOCKWISE_CANVAS_THEME || selectedTheme == CLOCKWISE_MARIO_THEME || selectedTheme == CLOCKWISE_PACMAN_THEME)
+  {
+    Serial.print("will update firmware to clockwiseFirmware");
+    // update firmware to canvas
+    WiFiClientSecure client;
+    client.setInsecure();
+
+    // Reading data over SSL may be slow, use an adequate timeout
+    client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
 
     IPAddress ipAddress = WiFi.localIP();
     char ipAddressString[16];
     sprintf(ipAddressString, "%s", ipAddress.toString().c_str());
-    printCenter(ipAddressString, 15);
+    printCenter(ipAddressString, 10);
 
     // Display Loading text
     const char *loadingText = "Loading..";
-    printCenter(loadingText, 30);
+    printCenter(loadingText, 20);
 
     httpUpdate.onProgress(update_progress);
 
-    t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/clock-club/main/binFiles/canvasPlusFirmware.bin");
+    t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/clock-club/main/binFiles/ClockwiseFirmware.bin");
 
     switch (ret)
     {
