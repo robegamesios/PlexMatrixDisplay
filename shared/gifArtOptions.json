@@ -1,0 +1,72 @@
+[
+    {
+        "value": "13",
+        "title": "Select Visualizer Pattern",
+        "label": "Select Visualizer Pattern"
+    },
+    {
+        "value": "12",
+        "title": "Auto Change every 1 Min",
+        "label": "Auto Change every 1 Min"
+    },
+    {
+        "value": "0",
+        "title": "Boxed Bars",
+        "label": "Boxed Bars"
+    },
+    {
+        "value": "1",
+        "title": "Boxed Bars 2",
+        "label": "Boxed Bars 2"
+    },
+    {
+        "value": "2",
+        "title": "Boxed Bars 3",
+        "label": "Boxed Bars 3"
+    },
+    {
+        "value": "3",
+        "title": "Red Bars",
+        "label": "Red Bars"
+    },
+    {
+        "value": "4",
+        "title": "Color Bars",
+        "label": "Color Bars"
+    },
+    {
+        "value": "5",
+        "title": "Twins",
+        "label": "Twins"
+    },
+    {
+        "value": "6",
+        "title": "Twins 2",
+        "label": "Twins 2"
+    },
+    {
+        "value": "7",
+        "title": "Tri Bars",
+        "label": "Tri Bars"
+    },
+    {
+        "value": "8",
+        "title": "Tri Bars 2",
+        "label": "Tri Bars 2"
+    },
+    {
+        "value": "9",
+        "title": "Center Bars",
+        "label": "Center Bars"
+    },
+    {
+        "value": "10",
+        "title": "Center Bars 2",
+        "label": "Center Bars 2"
+    },
+    {
+        "value": "11",
+        "title": "Black Bars",
+        "label": "Black Bars"
+    }
+]
