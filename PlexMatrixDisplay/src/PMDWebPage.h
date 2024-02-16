@@ -171,119 +171,6 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
     </div>
   </div>
   <script>
-    function createCards(settings) {
-      console.log(settings);
-      const cards = [
-        {
-          title: "Display Bright",
-          description: "0 = dark (display off) / 255 = super bright | Value: <strong><output id='rangevalue'>" + settings.displaybright + "</output></strong>",
-          formInput: "<input class='w3-input w3-border' type='range' min='0' max='255' value='" + settings.displaybright + "' class='slider' id='bright' oninput='rangevalue.value=value'>",
-          icon: "fa-adjust",
-          save: "updatePreference('displayBright', bright.value)",
-          property: "displayBright"
-        },
-        {
-          title: "Use 24h format?",
-          description: "Changes the hour format to show 20:00 instead of 8:00PM",
-          formInput: "<input class='w3-check' type='checkbox' id='use24h' " + (settings.use24hformat == '1' ? "checked" : "") + "><label for='use24h'> Yep</label>",
-          icon: "fa-clock-o",
-          save: "updatePreference('use24hFormat', Number(use24h.checked))",
-          property: "use24hFormat"
-        },
-        {
-          title: "Swap Blue/Green pins?",
-          description: "Swap Blue and Green pins because the panel is RBG instead of RGB",
-          formInput: "<input class='w3-check' type='checkbox' id='swapBG' " + (settings.swapbluegreen == '1' ? "checked" : "") + "><label for='swapBG'> Yep</label>",
-          icon: "fa-random",
-          save: "updatePreference('swapBlueGreen', Number(swapBG.checked))",
-          property: "swapBlueGreen"
-        },
-        {
-          title: "Timezone",
-          description: "Consult your TZ identifier <a href='https://en.wikipedia.org/wiki/List_of_tz_database_time_zones'>here.</a> Examples: America/Sao_Paulo, Europe/Lisbon",
-          formInput: "<input id='tz' class='w3-input w3-light-grey' name='tz' type='text' placeholder='Timezone' value='" + settings.timezone + "'>",
-          icon: "fa-globe",
-          save: "updatePreference('timeZone', tz.value)",
-          property: "timeZone"
-        },
-        {
-          title: "NTP Server",
-          description: "Configure your prefered NTP Server. You can use one of the <a href='https://www.ntppool.org'>NTP Pool Project</a> pools or a local one.",
-          formInput: "<input id='ntp' class='w3-input w3-light-grey' name='ntp' type='text' placeholder='NTP Server' value='" + settings.ntpserver + "'>",
-          icon: "fa-server",
-          save: "updatePreference('ntpServer', ntp.value)",
-          property: "ntpServer"
-        },
-        {
-          title: "Automatic Bright",
-          description: "Inform the values read by the LDR when the room is dark (min value) and bright (max value). Range 0 - 4095",
-          formInput: "<input id='autoBrightMin' class='w3-input w3-light-grey w3-cell w3-margin-right' name='autoBrightMin' style='width:45%;' type='number' min='0' max='4095' placeholder='Min value' value='" + settings.autobrightmin + "'>" + 
-                     "<input id='autoBrightMax' class='w3-input w3-light-grey w3-cell' name='autoBrightMax' style='width:45%;' type='number' min='0' max='4095' placeholder='Max value' value='" + settings.autobrightmax + "'>",
-          icon: "fa-sun-o",
-          save: "updatePreference('autoBright', autoBrightMin.value.padStart(4, '0') + ',' + autoBrightMax.value.padStart(4, '0'))",
-          property: "autoBright"
-        },
-        {
-          title: "LDR Pin",
-          description: "The GPIO pin where the LDR is connected to. Use just the numeric value (default: 35) | <a href='#' onclick='readPin(ldrPin.value);'>Read Pin: </a><strong id='ldrPinRead'>0</strong>",
-          formInput: "<input id='ldrPin' class='w3-input w3-light-grey' name='ldrPin' type='number' min='0' max='39' value='" + settings.ldrpin + "'>",
-          icon: "fa-microchip",
-          save: "updatePreference('ldrPin', ldrPin.value)",
-          property: "ldrPin"
-        },
-        {
-          title: "[Canvas] Description file",
-          description: "Name of the description file to be rendered without extension.",
-          formInput: "<input id='descFile' class='w3-input w3-light-grey' name='descFile' type='text' placeholder='Description File' value='" + settings.canvasfile + "'>",
-          icon: "fa-file-image-o",
-          save: "updatePreference('canvasFile', descFile.value)",
-          property: "canvasFile",
-          exclusive: "cw-cf-0x07"
-        },
-        {
-          title: "[Canvas] Server Address",
-          description: "Server address where the description files are located. Change this to test it locally.",
-          formInput: "<input id='serverAddress' class='w3-input w3-light-grey' name='serverAddress' type='text' placeholder='Canvas Server' value='" + settings.canvasserver + "'>",
-          icon: "fa-server",
-          save: "updatePreference('canvasServer', serverAddress.value)",
-          property: "canvasServer",
-          exclusive: "cw-cf-0x07"
-        },
-        {
-          title: "Posix Timezone String",
-          description: "To avoid remote lookups, provide a Posix string that corresponds to your timezone. Leave empty to obtain this automatically from the server. <a href=\"https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv\">Click here for a list.</a>",
-          formInput: "<input id='posixString' class='w3-input w3-light-grey' name='posixString' type='text' placeholder='Manual Posix String' value='" + settings.manualposix + "'>",
-          icon: "fa-globe",
-          save: "updatePreference('manualPosix', posixString.value)",
-          property: "manualPosix"
-        }
-      ];
-
-      var base = document.querySelector('#base');
-      cards.forEach(c => {
-
-        if (!c.hasOwnProperty('exclusive') || (c.hasOwnProperty('exclusive') && c.exclusive === settings.clockface_name)) {
-          var clone = base.cloneNode(true);
-          clone.id = c.property + "-card";
-          clone.removeAttribute("style");
-
-          Array.prototype.slice.call(clone.getElementsByTagName('*')).forEach(e => {
-            e.id = e.id + "-" + c.property;
-          });
-
-          base.before(clone);
-          document.getElementById("title-" + c.property).innerHTML = c.title
-          document.getElementById("description-" + c.property).innerHTML = c.description
-          document.getElementById("formInput-" + c.property).innerHTML = c.formInput
-          document.getElementById("icon-" + c.property).classList.add(c.icon);
-          document.getElementById("cardButton-" + c.property).setAttribute("onclick", c.save);
-        }
-      })
-
-      document.getElementById("ssid").innerHTML = "<i class='fa fa-wifi'></i> " + settings.wifissid
-      document.getElementById("fw-version").innerHTML = "<i class='fa fa-code-fork'></i> Firmware v" + settings.cw_fw_version
-    }
-
     // Function to fetch options from GitHub JSON file
     function fetchGifOptions() {
         fetch('https://raw.githubusercontent.com/robegamesios/PlexMatrixDisplay/main/shared/gifArtOptions.json')
@@ -292,9 +179,8 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
             const gifOptionSelect = document.getElementById('gifOptionSelect');
             data.forEach(option => {
                 const optionElement = document.createElement('option');
-                optionElement.value = option.value;
-                optionElement.title = option.title;
-                optionElement.textContent = option.label;
+                optionElement.title = option.value;
+                optionElement.textContent = option.value;
                 gifOptionSelect.appendChild(optionElement);
             });
         })

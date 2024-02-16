@@ -1107,7 +1107,6 @@ void setup()
 
   Serial.println("Connected to WiFi");
   printCenter("Connected to WiFi.", 50);
-  // delay(5000);
 
   clearImage();
   Serial.println("\r\nInitialisation done.");
