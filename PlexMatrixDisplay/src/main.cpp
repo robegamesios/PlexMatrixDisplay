@@ -1,6 +1,9 @@
 #define AUDIO_VISUALIZER_THEME 100
 #define PLEX_COVER_ART_THEME 200
 #define GIF_ART_THEME 210
+#define CLOCKWISE_CANVAS_THEME 0
+#define CLOCKWISE_MARIO_THEME 1
+#define CLOCKWISE_PACMAN_THEME 2
 
 // ******************************************* BEGIN MATRIX DISPLAY *******************************************
 #pragma region MATRIX_DISPLAY
@@ -338,7 +341,6 @@ void saveConfigCallback()
 void wifiConnect()
 {
   bool resp;
-  // resetWifi();
   wifiManager.setSaveConfigCallback(saveConfigCallback);
 
   WiFiManagerParameter plexServerIpParam(WM_PLEX_SERVER_IP_LABEL, "Plex Server IP Address", plexServerIp, 40);
@@ -389,7 +391,8 @@ boolean isConnected()
 #include <Preferences.h>
 
 Preferences preferences;
-const char *const PREF_SELECTED_THEME = "selectedTheme";
+const char *PREF_SELECTED_THEME = "selectedTheme";
+const char *PREF_GIF_ART_NAME = "gifArtName";
 uint8_t selectedTheme;
 uint8_t currentlyRunningTheme;
 
@@ -400,104 +403,229 @@ void savePreferences()
 
 void loadPreferences()
 {
-  selectedTheme = preferences.getUInt(PREF_SELECTED_THEME, 200);
+  int defaultTheme = (plexServerIp[0] == '\0' || plexServerPort[0] == '\0' || plexServerToken[0] == '\0') ? AUDIO_VISUALIZER_THEME : PLEX_COVER_ART_THEME;
+  selectedTheme = preferences.getUInt(PREF_SELECTED_THEME, defaultTheme);
 }
 
 #pragma endregion
 // ******************************************* END PREFERENCES ************************************************
 
-// ******************************************* BEGIN WEB SERVER ***********************************************
-#pragma region WEBSERVER
+// ******************************************* BEGIN PLEX COVER ART *******************************************
+#pragma region PLEX_COVER_ART
 
-#include <WebServer.h>
-#include <ESPmDNS.h>
-#include <Update.h>
-#include "PMDWebPage.h"
+String scrollingText = "";
+String lastAlbumArtURL = ""; // Variable to store the last downloaded album art URL
 
-WiFiServer server(80);
-
-String httpBuffer;
-bool force_restart;
-const char *HEADER_TEMPLATE_D = "X-%s: %d\r\n";
-const char *HEADER_TEMPLATE_S = "X-%s: %s\r\n";
-
-void processRequest(WiFiClient client, String method, String path, String key, String value)
+String decodeHtmlEntities(String text)
 {
-  if (method == "GET" && path == "/")
-  {
-    client.println("HTTP/1.0 200 OK");
-    client.println("Content-Type: text/html");
-    client.println();
-    client.println(SETTINGS_PAGE);
-  }
-  else if (method == "POST" && path == "/restart")
-  {
-    client.println("HTTP/1.0 204 No Content");
-    force_restart = true;
-  }
-  else if (method == "POST" && path == "/set")
-  {
-    loadPreferences();
+  String decodedText = text;
+  decodedText.replace("&quot;", "\"");
+  decodedText.replace("&amp;", "&");
+  decodedText.replace("&apos;", "'");
+  decodedText.replace("&lt;", "<");
+  decodedText.replace("&gt;", ">");
+  decodedText.replace("&#8217;", "'");
+  decodedText.replace("&#8216;", "'");
+  decodedText.replace("&#39;", "'");
+  // Add more replacements as needed
 
-    if (key == PREF_SELECTED_THEME)
-    {
-      selectedTheme = value.toInt();
-      if (selectedTheme != currentlyRunningTheme)
-      {
-        client.println("HTTP/1.0 204 No Content");
-        savePreferences();
-        currentlyRunningTheme = selectedTheme;
+  return decodedText;
+}
 
-        force_restart = true;
-        return;
-      }
-    }
-    client.println("HTTP/1.0 204 No Content");
+void resetPlexVariables()
+{
+  scrollingText = "";
+  lastAlbumArtURL = "";
+}
+
+void deleteAlbumArt()
+{
+  if (SPIFFS.exists(ALBUM_ART) == true)
+  {
+    Serial.println("Removing existing image");
+    SPIFFS.remove(ALBUM_ART);
   }
 }
 
-void handleHttpRequest()
+void downloadCoverArt(const char *relativeUrl, const char *trackTitle, const char *artistName)
 {
-  if (force_restart)
+  HTTPClient http;
+  // Construct the full URL by appending the relative URL to the base URL
+  String imageUrl = "http://" + String(plexServerIp) + ":" + String(plexServerPort) + "/photo/:/transcode?width=48&height=48&url=" + String(relativeUrl);
+  // Send GET request to the image URL
+  if (http.begin(imageUrl))
   {
-    restartDevice();
-  }
-
-  WiFiClient client = server.available();
-  if (client)
-  {
-    while (client.connected())
+    // Set the authentication token in the request headers
+    http.addHeader("X-Plex-Token", plexServerToken);
+    int httpCode = http.GET();
+    if (httpCode == HTTP_CODE_OK)
     {
-      if (client.available())
+      // Successfully downloaded the image, now save it to SPIFFS
+      File file = SPIFFS.open(ALBUM_ART, FILE_WRITE);
+      if (!file)
       {
-        char c = client.read();
-        httpBuffer.concat(c);
-
-        if (c == '\n')
-        {
-          uint8_t method_pos = httpBuffer.indexOf(' ');
-          uint8_t path_pos = httpBuffer.indexOf(' ', method_pos + 1);
-
-          String method = httpBuffer.substring(0, method_pos);
-          String path = httpBuffer.substring(method_pos + 1, path_pos);
-          String key = "";
-          String value = "";
-
-          if (path.indexOf('?') > 0)
-          {
-            key = path.substring(path.indexOf('?') + 1, path.indexOf('='));
-            value = path.substring(path.indexOf('=') + 1);
-            path = path.substring(0, path.indexOf('?'));
-          }
-
-          processRequest(client, method, path, key, value);
-          httpBuffer = "";
-          break;
-        }
+        Serial.println("Failed to create file");
+        return;
+      }
+      http.writeToStream(&file);
+      file.close();
+      // Check if the file exists
+      if (SPIFFS.exists(ALBUM_ART))
+      {
+        Serial.println("Image downloaded and saved successfully");
+        drawImagefromFile(ALBUM_ART);
+        printCenter(artistName, 62);
+        scrollingText = trackTitle;
+      }
+      else
+      {
+        Serial.println("Failed to save image to SPIFFS");
       }
     }
-    delay(1);
-    client.stop();
+    else
+    {
+      Serial.print("Failed to download image. HTTP error code: ");
+      Serial.println(httpCode);
+    }
+    http.end();
+  }
+  else
+  {
+    Serial.println("Failed to connect to image URL");
+  }
+}
+
+void getAlbumArt()
+{
+  HTTPClient http;
+  // Construct the Plex API URL to get the currently playing item
+  String apiUrl = "http://" + String(plexServerIp) + ":" + String(plexServerPort) + "/status/sessions";
+
+  if (http.begin(apiUrl))
+  {
+    // Set the authentication token in the request headers
+    http.addHeader("X-Plex-Token", plexServerToken);
+    int httpCode = http.GET();
+    if (httpCode > 0)
+    {
+      String payload = http.getString();
+      // Serial.println("*****************BEGIN PAYLOAD********************");
+      // Serial.println(payload);
+      // Serial.println("*****************END PAYLOAD********************");
+      // Parse the XML response to get the last track title, artist name, and thumbnail URL
+
+      int playerStateIndex = payload.indexOf("state=\"");
+
+      String playerState = "";
+      if (playerStateIndex != -1)
+      {
+        int stateStartIndex = playerStateIndex + 7; // Length of "state=\""
+        int stateEndIndex = payload.indexOf("\"", stateStartIndex);
+        playerState = payload.substring(stateStartIndex, stateEndIndex);
+      }
+
+      int lastTrackIndex = payload.lastIndexOf("<Track ");
+      if (lastTrackIndex != -1 && playerState == "playing")
+      {
+        // Extract the last track XML block
+        int trackEndIndex = payload.indexOf("</Track>", lastTrackIndex);
+        String trackXML = payload.substring(lastTrackIndex, trackEndIndex);
+        // Extract the track title
+        int titleIndex = trackXML.indexOf("title=\"");
+        if (titleIndex != -1)
+        {
+          int titleStartIndex = titleIndex + 7; // Length of "title=\""
+          int titleEndIndex = trackXML.indexOf("\"", titleStartIndex);
+          String trackTitle = trackXML.substring(titleStartIndex, titleEndIndex);
+          // Extract the artist name
+          int artistIndex = trackXML.indexOf("grandparentTitle=\"");
+          if (artistIndex != -1)
+          {
+            int artistStartIndex = artistIndex + 18; // Length of "grandparentTitle=\""
+            int artistEndIndex = trackXML.indexOf("\"", artistStartIndex);
+            String artistName = trackXML.substring(artistStartIndex, artistEndIndex);
+            // Extract the thumbnail URL
+            int thumbIndex = trackXML.indexOf("thumb=\"");
+            if (thumbIndex != -1)
+            {
+              int thumbStartIndex = thumbIndex + 7; // Length of "thumb=\""
+              int thumbEndIndex = trackXML.indexOf("\"", thumbStartIndex);
+              String coverArtURL = trackXML.substring(thumbStartIndex, thumbEndIndex);
+              // Display or use the last track title, artist name, and thumbnail URL as needed
+              if (!trackTitle.isEmpty() && !artistName.isEmpty() && !coverArtURL.isEmpty())
+              {
+                // Serial.println("Last Track Title: " + trackTitle);
+                // Serial.println("Artist Name: " + artistName);
+                // Serial.println("Last Thumbnail URL: " + coverArtURL);
+
+                String cleanTrackTitle = decodeHtmlEntities(trackTitle);
+                char trackTitleCharArray[cleanTrackTitle.length() + 1];
+                cleanTrackTitle.toCharArray(trackTitleCharArray, cleanTrackTitle.length() + 1);
+
+                String cleanArtistName = decodeHtmlEntities(artistName);
+                char artistNameCharArray[cleanArtistName.length() + 1];
+                cleanArtistName.toCharArray(artistNameCharArray, artistName.length() + 1);
+
+                // Check if the current album art URL is different from the last one
+                if (coverArtURL != lastAlbumArtURL)
+                {
+                  // Delete old cover art
+                  deleteAlbumArt();
+
+                  // Allocate a character array with extra space for null-terminator
+                  char coverArtCharArray[coverArtURL.length() + 1];
+
+                  // Copy the content of the String to the char array
+                  coverArtURL.toCharArray(coverArtCharArray, coverArtURL.length() + 1);
+
+                  // Download and save the thumbnail image
+                  downloadCoverArt(coverArtCharArray, trackTitleCharArray, artistNameCharArray);
+                  lastAlbumArtURL = coverArtURL; // Update the last downloaded album art URL
+                }
+                else
+                {
+                  // Serial.println("Album art hasn't changed. Skipping download.");
+
+                  // Trigger scrolling song title
+                  scrollingText = trackTitleCharArray;
+                }
+              }
+              else
+              {
+                Serial.println("Incomplete information for the last played song.");
+              }
+            }
+          }
+        }
+      }
+      else
+      {
+        Serial.println("No track is currently playing.");
+        resetPlexVariables();
+        clearImage();
+        printCenter("NO TRACK IS", 20);
+        printCenter("CURRENTLY", 30);
+        printCenter("PLAYING", 40);
+      }
+    }
+    else
+    {
+      Serial.println("HTTP request failed");
+      resetPlexVariables();
+      clearImage();
+      printCenter("HTTP REQUEST", 30);
+      printCenter("FAILED", 40);
+    }
+    http.end();
+  }
+  else
+  {
+    Serial.println("Unable to connect to Plex server");
+    resetPlexVariables();
+    clearImage();
+    printCenter("UNABLE TO", 20);
+    printCenter("CONNECT TO", 30);
+    printCenter("PLEX SERVER", 40);
   }
 }
 
@@ -794,6 +922,124 @@ void downloadGifArt(String filename)
 #pragma endregion
 // ******************************************* END GIF PLAYER *************************************************
 
+// ******************************************* BEGIN WEB SERVER ***********************************************
+#pragma region WEBSERVER
+
+#include <WebServer.h>
+#include <ESPmDNS.h>
+#include <Update.h>
+#include "PMDWebPage.h"
+
+WiFiServer server(80);
+
+String httpBuffer;
+bool force_restart;
+const char *HEADER_TEMPLATE_D = "X-%s: %d\r\n";
+const char *HEADER_TEMPLATE_S = "X-%s: %s\r\n";
+
+void processRequest(WiFiClient client, String method, String path, String key, String value)
+{
+  if (method == "GET" && path == "/")
+  {
+    client.println("HTTP/1.0 200 OK");
+    client.println("Content-Type: text/html");
+    client.println();
+    client.println(SETTINGS_PAGE);
+  }
+  else if (method == "POST" && path == "/restart")
+  {
+    client.println("HTTP/1.0 204 No Content");
+    force_restart = true;
+  }
+  else if (method == "POST" && path == "/reset-wifi")
+  {
+    client.println("HTTP/1.0 204 No Content");
+    resetWifi();
+    delay(1000);
+    force_restart = true;
+  }
+
+  else if (method == "POST" && path == "/set")
+  {
+    loadPreferences();
+
+    if (key == PREF_SELECTED_THEME)
+    {
+      selectedTheme = value.toInt();
+      if (selectedTheme != currentlyRunningTheme)
+      {
+        client.println("HTTP/1.0 204 No Content");
+        savePreferences();
+        currentlyRunningTheme = selectedTheme;
+
+        clearImage();
+        printCenter("REFRESHING..", 30);
+        delay(2000);
+        force_restart = true;
+        return;
+      }
+    }
+
+    if (key == PREF_GIF_ART_NAME)
+    {
+      String payload = value;
+      Serial.println("Received payload: " + payload);
+      client.println("HTTP/1.0 204 No Content");
+      downloadGifArt(payload);
+      force_restart = true;
+      return;
+    }
+  }
+}
+
+void handleHttpRequest()
+{
+  if (force_restart)
+  {
+    restartDevice();
+  }
+
+  WiFiClient client = server.available();
+  if (client)
+  {
+    while (client.connected())
+    {
+      if (client.available())
+      {
+        char c = client.read();
+        httpBuffer.concat(c);
+
+        if (c == '\n')
+        {
+          uint8_t method_pos = httpBuffer.indexOf(' ');
+          uint8_t path_pos = httpBuffer.indexOf(' ', method_pos + 1);
+
+          String method = httpBuffer.substring(0, method_pos);
+          String path = httpBuffer.substring(method_pos + 1, path_pos);
+          String key = "";
+          String value = "";
+
+          if (path.indexOf('?') > 0)
+          {
+            key = path.substring(path.indexOf('?') + 1, path.indexOf('='));
+            value = path.substring(path.indexOf('=') + 1);
+            path = path.substring(0, path.indexOf('?'));
+          }
+
+          processRequest(client, method, path, key, value);
+          httpBuffer = "";
+          break;
+        }
+      }
+    }
+    delay(1);
+    client.stop();
+  }
+}
+
+#pragma endregion
+// ******************************************* END WEB SERVER *************************************************
+
 // ******************************************* BEGIN MAIN *****************************************************
 #pragma region MAIN
 
@@ -805,7 +1051,7 @@ const int MAX_FAILED_ATTEMPTS = 5;
 void update_progress(int cur, int total)
 {
   // Clear screen
-  displayRect(0, 30, PANEL_WIDTH, 10, 0);
+  displayRect(0, 40, PANEL_WIDTH, 10, 0);
 
   // Display progress
   float progress = cur * 100.0 / total;
@@ -831,10 +1077,9 @@ void setup()
   }
 
   preferences.begin("PMD", false);
-  selectedTheme = preferences.getUInt(PREF_SELECTED_THEME, PLEX_COVER_ART_THEME);
   currentlyRunningTheme = selectedTheme;
 
-  printCenter("GIF Art", 30);
+  printCenter("TUNEFRAME", 30);
 
   wifiConnect();
 
@@ -853,9 +1098,16 @@ void setup()
       restartDevice();
     }
   }
+
+  // Display IP address
+  IPAddress ipAddress = WiFi.localIP();
+  char ipAddressString[16];
+  sprintf(ipAddressString, "%s", ipAddress.toString().c_str());
+  printCenter(ipAddressString, 10);
+
   Serial.println("Connected to WiFi");
-  printCenter("Connected to WiFi.", 40);
-  delay(3000);
+  printCenter("Connected to WiFi.", 50);
+  // delay(5000);
 
   clearImage();
   Serial.println("\r\nInitialisation done.");
@@ -870,23 +1122,58 @@ void setup()
   //   // Reading data over SSL may be slow, use an adequate timeout
   //   client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
 
+  //   IPAddress ipAddress = WiFi.localIP();
+  //   char ipAddressString[16];
+  //   sprintf(ipAddressString, "%s", ipAddress.toString().c_str());
+  //   printCenter(ipAddressString, 10);
+
+  //   // Display Loading text
+  //   const char *loadingText = "Loading..";
+  //   printCenter(loadingText, 20);
   //   // Display IP address
-  //   char ipAddressLabel[16];
-  //   sprintf(ipAddressLabel, "IP Address:");
-  //   printCenter(ipAddressLabel, 5);
+
+  //   httpUpdate.onProgress(update_progress);
+
+  //   t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/PlexMatrixDisplay/main/binFiles/TuneFrameFirmware.bin");
+
+  //   switch (ret)
+  //   {
+  //   case HTTP_UPDATE_FAILED:
+  //     Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+  //     break;
+
+  //   case HTTP_UPDATE_NO_UPDATES:
+  //     Serial.println("HTTP_UPDATE_NO_UPDATES");
+  //     break;
+
+  //   case HTTP_UPDATE_OK:
+  //     Serial.println("HTTP_UPDATE_OK");
+  //     break;
+  //   }
+  //   return;
+  // }
+  // else if (selectedTheme == CLOCKWISE_CANVAS_THEME || selectedTheme == CLOCKWISE_MARIO_THEME || selectedTheme == CLOCKWISE_PACMAN_THEME)
+  // {
+  //   Serial.print("will update firmware to clockwiseFirmware");
+  //   // update firmware to canvas
+  //   WiFiClientSecure client;
+  //   client.setInsecure();
+
+  //   // Reading data over SSL may be slow, use an adequate timeout
+  //   client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
 
   //   IPAddress ipAddress = WiFi.localIP();
   //   char ipAddressString[16];
   //   sprintf(ipAddressString, "%s", ipAddress.toString().c_str());
-  //   printCenter(ipAddressString, 15);
+  //   printCenter(ipAddressString, 10);
 
   //   // Display Loading text
   //   const char *loadingText = "Loading..";
-  //   printCenter(loadingText, 30);
+  //   printCenter(loadingText, 20);
 
   //   httpUpdate.onProgress(update_progress);
 
-  //   t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/clock-club/main/binFiles/canvasPlusFirmware.bin");
+  //   t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/PlexMatrixDisplay/main/binFiles/ClockwiseFirmware.bin");
 
   //   switch (ret)
   //   {
@@ -907,7 +1194,7 @@ void setup()
 
   server.begin();
 
-  downloadGifArt("bugcat-crowd");
+  // downloadGifArt("bugcat-crowd");
 }
 
 void loop()
