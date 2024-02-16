@@ -391,6 +391,7 @@ boolean isConnected()
 Preferences preferences;
 const char *PREF_SELECTED_THEME = "selectedTheme";
 const char *PREF_AV_PATTERN = "avPattern";
+const char *PREF_PLEX_CREDENTIALS = "plexCredentials";
 uint8_t selectedTheme;
 uint8_t currentlyRunningTheme;
 
@@ -401,7 +402,8 @@ void savePreferences()
 
 void loadPreferences()
 {
-  selectedTheme = preferences.getUInt(PREF_SELECTED_THEME, 200);
+  int defaultTheme = (plexServerIp[0] == '\0' || plexServerPort[0] == '\0' || plexServerToken[0] == '\0') ? AUDIO_VISUALIZER_THEME : PLEX_COVER_ART_THEME;
+  selectedTheme = preferences.getUInt(PREF_SELECTED_THEME, defaultTheme);
 }
 
 #pragma endregion
@@ -448,7 +450,6 @@ void downloadCoverArt(const char *relativeUrl, const char *trackTitle, const cha
 {
   HTTPClient http;
   // Construct the full URL by appending the relative URL to the base URL
-  // String imageUrl = "http://" + String(plexServerIp) + ":" + String(plexServerPort) + "/photo/:/transcode?width=64&height=64&url=" + String(relativeUrl);
   String imageUrl = "http://" + String(plexServerIp) + ":" + String(plexServerPort) + "/photo/:/transcode?width=48&height=48&url=" + String(relativeUrl);
   // Send GET request to the image URL
   if (http.begin(imageUrl))
@@ -1102,7 +1103,6 @@ void loopAudioVisualizer()
 // Function to update visualizer settings
 void updateAudioVisualizerSettings(int pattern)
 {
-  Serial.printf("selected AV Pattern = ", String(pattern));
   if (pattern == 12)
   {
     autoChangePatterns = true;
@@ -1164,8 +1164,6 @@ void processRequest(WiFiClient client, String method, String path, String key, S
         clearImage();
         printCenter("REFRESHING..", 30);
         delay(2000);
-
-        // force_restart = true;
         return;
       }
     }
@@ -1176,8 +1174,38 @@ void processRequest(WiFiClient client, String method, String path, String key, S
       updateAudioVisualizerSettings(value.toInt());
       return;
     }
-    client.println("HTTP/1.0 204 No Content");
+
+    if (key == PREF_PLEX_CREDENTIALS)
+    {
+      String payload = value;
+      Serial.println("Received payload: " + value);
+
+      // Extract server address, server port, and auth token from the payload
+      int firstDelimiterIndex = payload.indexOf(',');
+      int secondDelimiterIndex = payload.indexOf(',', firstDelimiterIndex + 1);
+
+      String serverAddress = payload.substring(0, firstDelimiterIndex);
+      String serverPortAndToken = payload.substring(firstDelimiterIndex + 1);
+      int thirdDelimiterIndex = serverPortAndToken.indexOf(',');
+      String serverPort = serverPortAndToken.substring(0, thirdDelimiterIndex);
+      String authToken = serverPortAndToken.substring(thirdDelimiterIndex + 1);
+
+      // Print the extracted values (for debugging)
+      // Serial.println("Server Address: " + serverAddress);
+      // Serial.println("Server Port: " + serverPort);
+      // Serial.println("Auth Token: " + authToken);
+
+      // Check if parameters are empty and provide default values if necessary
+      serverAddress = (serverAddress.length() == 0) ? plexServerIp : serverAddress;
+      serverPort = (serverPort.length() == 0) ? plexServerPort : serverPort;
+      authToken = (authToken.length() == 0) ? plexServerToken : authToken;
+
+      client.println("HTTP/1.0 204 No Content");
+      saveConfig(serverAddress.c_str(), serverPort.c_str(), authToken.c_str());
+      force_restart = true;
+    }
   }
+  client.println("HTTP/1.0 204 No Content");
 }
 
 void handleHttpRequest()
@@ -1270,7 +1298,7 @@ void setup()
   deleteAlbumArt();
 
   preferences.begin("PMD", false);
-  selectedTheme = preferences.getUInt(PREF_SELECTED_THEME, PLEX_COVER_ART_THEME);
+  loadPreferences();
   currentlyRunningTheme = selectedTheme;
 
   if (selectedTheme == AUDIO_VISUALIZER_THEME)
@@ -1367,6 +1395,8 @@ void loop()
   if (isConnected())
   {
     handleHttpRequest();
+
+    // Defaults to audio visualizer
     loopAudioVisualizer();
 
     if (selectedTheme == PLEX_COVER_ART_THEME)

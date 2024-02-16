@@ -91,6 +91,13 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
     <h2 class="card-title">Plex Music Cover Art</h2>
     <p class="card-description">Displays Plex Music Cover Art.</p>
     <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/7c453b0f043ca22062ad4929961196badc97c16b/thumbnails/plex_cover_art_2.jpg?raw=true" alt="Plex Music Cover Art">
+    <label for="serverAddress">Server Address:</label>
+    <input type="text" id="serverAddress" name="serverAddress"><br><br>
+     <label for="serverPort">Server Port Number:</label>
+    <input type="text" id="serverPort" name="serverPort"><br><br>
+    <label for="authToken">Auth Token:</label>
+    <input type="text" id="authToken" name="authToken"><br><br>
+    <button onclick="updatePlexCredentials()">Save Settings</button>
     <a class="update-button" onclick="updatePreference('selectedTheme', 200)">Select</a>
 </div>
 <div class="card">
@@ -309,6 +316,28 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
           document.getElementById('status').style.display = 'none';
         }, 2000);        
     });
+
+    function updatePlexCredentials() {
+      // Get the values from the input fields
+      var serverAddress = document.getElementById("serverAddress").value;
+      var serverPort = document.getElementById("serverPort").value;
+      var authToken = document.getElementById("authToken").value;
+
+      var payload = serverAddress + "," + serverPort + "," + authToken;
+
+      const xhr = new XMLHttpRequest();
+      xhr.onreadystatechange = function () {
+        if (this.readyState == 4 && this.status >= 200 && this.status < 299) {
+          document.getElementById('status').style.display = 'block';
+        }
+      };
+      xhr.open('POST', '/set?' + "plexCredentials" + '=' + payload);
+      xhr.send();
+
+      setTimeout(() => {
+        document.getElementById('status').style.display = 'none';
+      }, 2000);
+    }
 
     function updatePreference(key, value) {
       const xhr = new XMLHttpRequest();
