@@ -2,8 +2,6 @@
 
 #include <Arduino.h>
 
-// TODO: Move the whole JS to a CDN soon
-
 const char SETTINGS_PAGE[] PROGMEM = R""""(
 <!DOCTYPE html>
 <html>
@@ -11,7 +9,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Card Example</title>
+    <title>TUNEFRAME</title>
     <style>
         .card {
             display: inline-block;
