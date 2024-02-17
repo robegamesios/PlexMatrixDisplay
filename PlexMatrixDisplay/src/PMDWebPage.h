@@ -55,7 +55,6 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
     </style>
 </head>
 
-<title>Clockwise Settings</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
@@ -75,7 +74,6 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
     <div class="w3-bar-item w3-button w3-hover-yellow w3-right" onclick="resetWifi();"><i class='fa fa-power-off'></i> Reset Wifi</div>
     <div id="ssid" class="w3-bar-item w3-hover-blue w3-right"></div>
     <div class="w3-bar-item w3-button w3-hover-yellow w3-right" onclick="restartDevice();"><i class='fa fa-power-off'></i> Restart Device</div>
-    <div id="status" class="w3-bar-item w3-green" style="display:none"><i class='fa fa-floppy-o'></i> Saved! Restart your device</div>
   </div>
 
 <div class="card">
@@ -120,8 +118,8 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
     <p class="card-description">Display your favorite GIF Art.</p>
     <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/main/thumbnails/gif_art.jpg?raw=true" alt="Gif Art">
     <br><br>
-    <select id="gifOptionSelect" name='Select a GIF Art'>
-    </select><br><br>
+    <label for="gifArtName">Type the Gif filename:</label>
+    <input type="text" id="gifArtName" name="gifArtName"><br><br>
     <button onclick="uploadGifArt()">Load Art</button><br><br>
     <a class="update-button" onclick="updatePreference('selectedTheme', 210)">Select</a>
 </div>
@@ -171,28 +169,9 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
     </div>
   </div>
   <script>
-    // Function to fetch options from GitHub JSON file
-    function fetchGifOptions() {
-        fetch('https://raw.githubusercontent.com/robegamesios/PlexMatrixDisplay/main/shared/gifArtOptions.json')
-        .then(response => response.json())
-        .then(data => {
-            const gifOptionSelect = document.getElementById('gifOptionSelect');
-            data.forEach(option => {
-                const optionElement = document.createElement('option');
-                optionElement.title = option.value;
-                optionElement.textContent = option.value;
-                gifOptionSelect.appendChild(optionElement);
-            });
-        })
-        .catch(error => {
-            console.error('Error fetching options:', error);
-        });
-    }
-
     function uploadGifArt() {
-      var selectElement = document.getElementById('gifOptionSelect');
-      var selectedOption = selectElement.options[selectElement.selectedIndex];
-      var title = selectedOption.title;
+      // Get the values from the input fields
+      var gifArtName = document.getElementById("gifArtName").value;
 
       const xhr = new XMLHttpRequest();
       xhr.onreadystatechange = function () {
@@ -200,7 +179,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
           document.getElementById('status').style.display = 'block';
         }
       };
-      xhr.open('POST', '/set?' + "gifArtName" + '=' + title);
+      xhr.open('POST', '/set?' + "gifArtName" + '=' + gifArtName);
       xhr.send();
 
       setTimeout(() => {
@@ -286,12 +265,6 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
       xhr.open('POST', '/reset-wifi');
       xhr.send();
     }
-
-    // Call fetchOptions() function when the page loads
-    window.onload = function() {
-        fetchGifOptions();
-    };
-
   </script>
 </body>
 </html>

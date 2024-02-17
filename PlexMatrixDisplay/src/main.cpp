@@ -242,8 +242,7 @@ bool shouldSaveConfig = false;
 void restartDevice()
 {
   clearImage();
-  printCenter("REBOOTING..", 30);
-  delay(3000);
+  // printCenter("REBOOTING..", 30);
   ESP.restart();
 }
 
@@ -1077,6 +1076,7 @@ void setup()
   }
 
   preferences.begin("PMD", false);
+  loadPreferences();
   currentlyRunningTheme = selectedTheme;
 
   printCenter("TUNEFRAME", 30);
@@ -1111,85 +1111,85 @@ void setup()
   clearImage();
   Serial.println("\r\nInitialisation done.");
 
-  // if (selectedTheme == AUDIO_VISUALIZER_THEME || selectedTheme == PLEX_COVER_ART_THEME)
-  // {
-  //   Serial.print("will update firmware to Plex cover art or audio visualizer");
-  //   // update firmware to canvas
-  //   WiFiClientSecure client;
-  //   client.setInsecure();
+  if (selectedTheme == AUDIO_VISUALIZER_THEME || selectedTheme == PLEX_COVER_ART_THEME)
+  {
+    Serial.print("will update firmware to Plex cover art or audio visualizer");
+    // update firmware to canvas
+    WiFiClientSecure client;
+    client.setInsecure();
 
-  //   // Reading data over SSL may be slow, use an adequate timeout
-  //   client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
+    // Reading data over SSL may be slow, use an adequate timeout
+    client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
 
-  //   IPAddress ipAddress = WiFi.localIP();
-  //   char ipAddressString[16];
-  //   sprintf(ipAddressString, "%s", ipAddress.toString().c_str());
-  //   printCenter(ipAddressString, 10);
+    IPAddress ipAddress = WiFi.localIP();
+    char ipAddressString[16];
+    sprintf(ipAddressString, "%s", ipAddress.toString().c_str());
+    printCenter(ipAddressString, 10);
 
-  //   // Display Loading text
-  //   const char *loadingText = "Loading..";
-  //   printCenter(loadingText, 20);
-  //   // Display IP address
+    // Display Loading text
+    const char *loadingText = "Loading..";
+    printCenter(loadingText, 20);
+    // Display IP address
 
-  //   httpUpdate.onProgress(update_progress);
+    httpUpdate.onProgress(update_progress);
 
-  //   t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/PlexMatrixDisplay/main/binFiles/TuneFrameFirmware.bin");
+    t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/PlexMatrixDisplay/main/binFiles/TuneFrameFirmware.bin");
 
-  //   switch (ret)
-  //   {
-  //   case HTTP_UPDATE_FAILED:
-  //     Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
-  //     break;
+    switch (ret)
+    {
+    case HTTP_UPDATE_FAILED:
+      Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+      break;
 
-  //   case HTTP_UPDATE_NO_UPDATES:
-  //     Serial.println("HTTP_UPDATE_NO_UPDATES");
-  //     break;
+    case HTTP_UPDATE_NO_UPDATES:
+      Serial.println("HTTP_UPDATE_NO_UPDATES");
+      break;
 
-  //   case HTTP_UPDATE_OK:
-  //     Serial.println("HTTP_UPDATE_OK");
-  //     break;
-  //   }
-  //   return;
-  // }
-  // else if (selectedTheme == CLOCKWISE_CANVAS_THEME || selectedTheme == CLOCKWISE_MARIO_THEME || selectedTheme == CLOCKWISE_PACMAN_THEME)
-  // {
-  //   Serial.print("will update firmware to clockwiseFirmware");
-  //   // update firmware to canvas
-  //   WiFiClientSecure client;
-  //   client.setInsecure();
+    case HTTP_UPDATE_OK:
+      Serial.println("HTTP_UPDATE_OK");
+      break;
+    }
+    return;
+  }
+  else if (selectedTheme == CLOCKWISE_CANVAS_THEME || selectedTheme == CLOCKWISE_MARIO_THEME || selectedTheme == CLOCKWISE_PACMAN_THEME)
+  {
+    Serial.print("will update firmware to clockwiseFirmware");
+    // update firmware to canvas
+    WiFiClientSecure client;
+    client.setInsecure();
 
-  //   // Reading data over SSL may be slow, use an adequate timeout
-  //   client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
+    // Reading data over SSL may be slow, use an adequate timeout
+    client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
 
-  //   IPAddress ipAddress = WiFi.localIP();
-  //   char ipAddressString[16];
-  //   sprintf(ipAddressString, "%s", ipAddress.toString().c_str());
-  //   printCenter(ipAddressString, 10);
+    IPAddress ipAddress = WiFi.localIP();
+    char ipAddressString[16];
+    sprintf(ipAddressString, "%s", ipAddress.toString().c_str());
+    printCenter(ipAddressString, 10);
 
-  //   // Display Loading text
-  //   const char *loadingText = "Loading..";
-  //   printCenter(loadingText, 20);
+    // Display Loading text
+    const char *loadingText = "Loading..";
+    printCenter(loadingText, 20);
 
-  //   httpUpdate.onProgress(update_progress);
+    httpUpdate.onProgress(update_progress);
 
-  //   t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/PlexMatrixDisplay/main/binFiles/ClockwiseFirmware.bin");
+    t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/PlexMatrixDisplay/main/binFiles/ClockwiseFirmware.bin");
 
-  //   switch (ret)
-  //   {
-  //   case HTTP_UPDATE_FAILED:
-  //     Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
-  //     break;
+    switch (ret)
+    {
+    case HTTP_UPDATE_FAILED:
+      Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+      break;
 
-  //   case HTTP_UPDATE_NO_UPDATES:
-  //     Serial.println("HTTP_UPDATE_NO_UPDATES");
-  //     break;
+    case HTTP_UPDATE_NO_UPDATES:
+      Serial.println("HTTP_UPDATE_NO_UPDATES");
+      break;
 
-  //   case HTTP_UPDATE_OK:
-  //     Serial.println("HTTP_UPDATE_OK");
-  //     break;
-  //   }
-  //   return;
-  // }
+    case HTTP_UPDATE_OK:
+      Serial.println("HTTP_UPDATE_OK");
+      break;
+    }
+    return;
+  }
 
   server.begin();
 
