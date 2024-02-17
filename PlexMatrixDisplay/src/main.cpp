@@ -352,7 +352,7 @@ void wifiConnect()
   wifiManager.addParameter(&plexServerPortParam);
   wifiManager.addParameter(&plexServerTokenParam);
 
-  resp = wifiManager.autoConnect("PMD Wifi Setup");
+  resp = wifiManager.autoConnect("TUNEFRAME Wifi Setup");
 
   if (!resp)
   {
