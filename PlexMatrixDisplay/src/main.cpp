@@ -347,13 +347,13 @@ void wifiConnect()
   WiFiManagerParameter plexServerPortParam(WM_PLEX_SERVER_PORT_LABEL, "Plex Server Port Number (defaults to 32400)", plexServerPort, 40);
   WiFiManagerParameter plexServerTokenParam(WM_PLEX_SERVER_TOKEN_LABEL, "Plex Server Auth Token", plexServerToken, 60);
 
-  wifiManager.setTitle("PMD Wifi Setup");
+  wifiManager.setTitle("TUNEFRAME Wifi Setup");
   wifiManager.setMenu(_menu);
   wifiManager.addParameter(&plexServerIpParam);
   wifiManager.addParameter(&plexServerPortParam);
   wifiManager.addParameter(&plexServerTokenParam);
 
-  resp = wifiManager.autoConnect("PMD Wifi Setup");
+  resp = wifiManager.autoConnect("TUNEFRAME Wifi Setup");
 
   if (!resp)
   {
@@ -1315,7 +1315,7 @@ void setup()
   // Cleanup from last session
   deleteAlbumArt();
 
-  preferences.begin("PMD", false);
+  preferences.begin("TUNEFRAME", false);
   loadPreferences();
   currentlyRunningTheme = selectedTheme;
 
