@@ -80,7 +80,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
 <div class="card">
     <h2 class="card-title">Music Visualizer</h2>
     <p class="card-description">Shows audio spectrum that syncs with your music.</p>
-    <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/a21c8d41fbd933d12098baaacfc8a5523ff8d2c5/thumbnails/audio_visualizer.jpg?raw=true" alt="Music Visualizer">
+    <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/main/thumbnails/musicVisualizer.jpg?raw=true" alt="Music Visualizer">
     <br><br>
     <select id="optionSelect" name='option'>
     <option value='13' title='Select Visualizer Pattern'>Select Visualizer Pattern</option>
@@ -104,7 +104,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
 <div class="card">
     <h2 class="card-title">Plex Music Cover Art</h2>
     <p class="card-description">Displays Plex Music Cover Art.</p>
-    <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/main/thumbnails/plex_cover_art_2.jpg?raw=true" alt="Plex Music Cover Art">
+    <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/main/thumbnails/coverArt.jpg?raw=true" alt="Plex Music Cover Art">
     <label for="serverAddress">Server Address:</label>
     <input type="text" id="serverAddress" name="serverAddress"><br><br>
      <label for="serverPort">Server Port Number:</label>

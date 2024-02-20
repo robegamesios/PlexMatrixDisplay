@@ -560,7 +560,6 @@ void downloadCoverArt(const char *relativeUrl, const char *trackTitle, const cha
       {
         Serial.println("Image downloaded and saved successfully");
         drawImagefromFile(ALBUM_ART);
-        // printCenter(artistName, 62);
         scrollingText = trackTitle;
         lowerScrollingText = artistName;
       }
