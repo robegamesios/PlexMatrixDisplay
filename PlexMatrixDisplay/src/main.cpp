@@ -120,6 +120,7 @@ enum ScrollState
 };
 
 char previousScrollingText[100] = "";
+char previousScrollingText2[100] = "";
 
 void scrollingPrintCenter(const char *buf, int y)
 {
@@ -162,6 +163,87 @@ void scrollingPrintCenter(const char *buf, int y)
         dma_display->print(buf);
         state = SCROLL_IDLE; // Reset state to IDLE if no scrolling is needed
         strcpy(previousScrollingText, buf);
+      }
+    }
+    break;
+
+  case SCROLL_RUNNING:
+    // Calculate time since last scroll
+    unsigned long currentTime = millis();
+    unsigned long elapsedTime = currentTime - lastScrollTime;
+
+    // If enough time has elapsed, scroll the text
+    if (elapsedTime >= scrollSpeed)
+    {
+      // Clear part of the screen for the scrolling text
+      displayRect(0, clearOriginY, PANEL_WIDTH, clearHeight, 0);
+
+      // Calculate the new position for the text
+      int16_t displayX = xPos;
+
+      // Print the text at the new position
+      dma_display->setCursor(displayX, y);
+      dma_display->setTextColor(0xffff);
+      dma_display->print(buf);
+
+      // Update last scroll time
+      lastScrollTime = currentTime;
+
+      // Move the text to the left
+      xPos--;
+
+      if (xPos == -textWidth)
+      {
+        // If the text has scrolled completely off the screen, reset xPos to start over
+        xPos = PANEL_WIDTH;
+        state = SCROLL_IDLE;
+      }
+    }
+    break;
+  }
+}
+
+void scrollingPrintCenter2(const char *buf, int y)
+{
+  static int16_t x1, y1;
+  static uint16_t w, h;
+  static uint16_t textWidth;
+  static int clearOriginY = y - 5;
+  static int clearHeight = 7;
+  static int16_t xPos;
+  static unsigned long lastScrollTime;
+  static int scrollSpeed = 100; // Adjust scroll speed here (milliseconds per step)
+  static ScrollState state = SCROLL_IDLE;
+
+  switch (state)
+  {
+  case SCROLL_IDLE:
+    // Set the font and get the width of the text
+    dma_display->setFont(&Picopixel);
+    dma_display->getTextBounds(buf, 0, y, &x1, &y1, &w, &h);
+    textWidth = w;
+
+    // If the text width is greater than the screen width, start scrolling
+    if (textWidth > PANEL_WIDTH)
+    {
+      // Initialize scrolling position
+      xPos = PANEL_WIDTH;
+      lastScrollTime = millis();
+      state = SCROLL_RUNNING;
+    }
+    else
+    {
+      if (strcmp(previousScrollingText2, buf) != 0)
+      {
+        // If the text width is not greater than the screen width, print it centered
+        // Clear part of the screen for the scrolling text
+        displayRect(0, clearOriginY, PANEL_WIDTH, clearHeight, 0);
+
+        dma_display->setCursor(32 - (w / 2), y);
+        dma_display->setTextColor(0xffff);
+        dma_display->print(buf);
+        state = SCROLL_IDLE; // Reset state to IDLE if no scrolling is needed
+        strcpy(previousScrollingText2, buf);
       }
     }
     break;
@@ -416,6 +498,7 @@ void loadPreferences()
 #pragma region PLEX_COVER_ART
 
 String scrollingText = "";
+String lowerScrollingText = "";
 String lastAlbumArtURL = ""; // Variable to store the last downloaded album art URL
 
 String decodeHtmlEntities(String text)
@@ -437,6 +520,7 @@ String decodeHtmlEntities(String text)
 void resetPlexVariables()
 {
   scrollingText = "";
+  lowerScrollingText = "";
   lastAlbumArtURL = "";
 }
 
@@ -476,8 +560,8 @@ void downloadCoverArt(const char *relativeUrl, const char *trackTitle, const cha
       {
         Serial.println("Image downloaded and saved successfully");
         drawImagefromFile(ALBUM_ART);
-        printCenter(artistName, 62);
         scrollingText = trackTitle;
+        lowerScrollingText = artistName;
       }
       else
       {
@@ -590,6 +674,7 @@ void getAlbumArt()
 
                   // Trigger scrolling song title
                   scrollingText = trackTitleCharArray;
+                  lowerScrollingText = artistNameCharArray;
                 }
               }
               else
@@ -1443,20 +1528,19 @@ void loop()
   if (isConnected())
   {
     handleHttpRequest();
-
-    // Defaults to audio visualizer
     loopAudioVisualizer();
 
+    // Check album art every 5 seconds
+    unsigned long currentMillis = millis();
     if (selectedTheme == PLEX_COVER_ART_THEME)
     {
-      // Check album art every 5 seconds
-      unsigned long currentMillis = millis();
       if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval)
       {
         lastAlbumArtUpdateTime = currentMillis;
         getAlbumArt();
       }
       scrollingPrintCenter(scrollingText.c_str(), 7);
+      scrollingPrintCenter2(lowerScrollingText.c_str(), 62);
     }
   }
 }
