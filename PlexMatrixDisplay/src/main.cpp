@@ -1443,14 +1443,12 @@ void loop()
   if (isConnected())
   {
     handleHttpRequest();
-
-    // Defaults to audio visualizer
     loopAudioVisualizer();
 
+    // Check album art every 5 seconds
+    unsigned long currentMillis = millis();
     if (selectedTheme == PLEX_COVER_ART_THEME)
     {
-      // Check album art every 5 seconds
-      unsigned long currentMillis = millis();
       if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval)
       {
         lastAlbumArtUpdateTime = currentMillis;
