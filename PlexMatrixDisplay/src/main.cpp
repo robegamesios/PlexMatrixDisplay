@@ -722,9 +722,9 @@ void getAlbumArt()
 // ******************************************* BEGIN SPOTIFY COVER ART ****************************************
 #pragma region SPOTIFY_COVER_ART
 
-#include <Arduino.h>
-#include <HTTPClient.h>
 #include <string>
+
+String access_token = "";
 
 // Base64 encoding function
 std::string base64_encode(const std::string &str)
@@ -798,12 +798,54 @@ void getAccessToken(const std::string &client_id, const std::string &client_secr
   {
     String response = http.getString();
     Serial.println("Response: " + response);
-    // Parse response JSON to extract token
-    // You can use a JSON library to parse the response JSON
+
+    // Parse the JSON response
+    DynamicJsonDocument doc(1024);
+    DeserializationError error = deserializeJson(doc, response);
+    if (!error)
+    {
+      access_token = doc["access_token"].as<String>();
+      Serial.println("Access token: " + access_token);
+    }
+    else
+    {
+      Serial.print("deserializeJson() failed: ");
+      Serial.println(error.c_str());
+    }
   }
   else
   {
     Serial.printf("HTTP POST request failed, error: %s\n", http.errorToString(httpCode).c_str());
+  }
+
+  http.end();
+}
+
+void getCurrentSong(const String &access_token)
+{
+  HTTPClient http;
+
+  // Set up the URL
+  String url = "https://api.spotify.com/v1/me/player/currently-playing?additional_types=episode&market=IE";
+
+  // Set up the headers
+  http.begin(url);
+  http.addHeader("Authorization", "Bearer " + access_token);
+
+  // Make the GET request
+  int httpCode = http.GET();
+  Serial.println("********HTTPCODE: ");
+  Serial.println(httpCode);
+  if (httpCode == HTTP_CODE_OK)
+  {
+    String payload = http.getString();
+    Serial.println("Current song: " + payload);
+    // Parse the response to extract song details
+    // You can use a JSON library to parse the JSON response
+  }
+  else
+  {
+    Serial.printf("HTTP GET request failed, error: %s\n", http.errorToString(httpCode).c_str());
   }
 
   http.end();
@@ -1636,11 +1678,12 @@ void loop()
     {
       if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval)
       {
-        lastAlbumArtUpdateTime = currentMillis;
-        getAlbumArt();
+        // lastAlbumArtUpdateTime = currentMillis;
+        // getAlbumArt();
+        getCurrentSong(access_token);
       }
-      scrollingPrintCenter(scrollingText.c_str(), 7);
-      scrollingPrintCenter2(lowerScrollingText.c_str(), 62);
+      // scrollingPrintCenter(scrollingText.c_str(), 7);
+      // scrollingPrintCenter2(lowerScrollingText.c_str(), 62);
     }
   }
 }
