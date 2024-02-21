@@ -55,12 +55,12 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
     </style>
 </head>
 
-<title>Clockwise Settings</title>
+<title>TUNEFRAME</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
 <link rel="shortcut icon" type="image/x-icon"
-  href="https://github.com/jnthas/clockwise/raw/gh-pages/static/images/favicon.png">
+  href="https://github.com/robegamesios/PlexMatrixDisplay/blob/main/thumbnails/logo.png">
 
 <body>
 
@@ -72,7 +72,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
 
   <div class="w3-bar w3-black w3-medium">
     <div id="fw-version" class="w3-bar-item w3-black w3-hover-red"></div>
-    <div class="w3-bar-item w3-button w3-hover-yellow w3-right" onclick="resetWifi();"><i class='fa fa-power-off'></i> Reset Wifi</div>
+    <div class="w3-bar-item w3-button w3-hover-yellow w3-right" onclick="resetWifi();"><i class='fa fa-wifi'></i> Reset Wifi</div>
     <div id="ssid" class="w3-bar-item w3-hover-blue w3-right"></div>
     <div class="w3-bar-item w3-button w3-hover-yellow w3-right" onclick="restartDevice();"><i class='fa fa-power-off'></i> Restart Device</div>
   </div>
