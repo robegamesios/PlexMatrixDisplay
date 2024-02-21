@@ -719,6 +719,99 @@ void getAlbumArt()
 #pragma endregion
 // ******************************************* END PLEX COVER ART *********************************************
 
+// ******************************************* BEGIN SPOTIFY COVER ART ****************************************
+#pragma region SPOTIFY_COVER_ART
+
+#include <Arduino.h>
+#include <HTTPClient.h>
+#include <string>
+
+// Base64 encoding function
+std::string base64_encode(const std::string &str)
+{
+  static const char *b64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  std::string encoded;
+  int i = 0;
+  int j = 0;
+  unsigned char char_array_3[3];
+  unsigned char char_array_4[4];
+
+  for (unsigned char c : str)
+  {
+    char_array_3[i++] = c;
+    if (i == 3)
+    {
+      char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
+      char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
+      char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
+      char_array_4[3] = char_array_3[2] & 0x3f;
+
+      for (i = 0; (i < 4); i++)
+        encoded += b64chars[char_array_4[i]];
+      i = 0;
+    }
+  }
+
+  if (i)
+  {
+    for (j = i; j < 3; j++)
+      char_array_3[j] = '\0';
+
+    char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
+    char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
+    char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
+
+    for (j = 0; (j < i + 1); j++)
+      encoded += b64chars[char_array_4[j]];
+
+    while ((i++ < 3))
+      encoded += '=';
+  }
+
+  return encoded;
+}
+
+void getAccessToken(const std::string &client_id, const std::string &client_secret)
+{
+  // Construct authorization header
+  std::string auth = client_id + ":" + client_secret;
+  std::string auth_base64 = base64_encode(auth);
+
+  // Construct POST data
+  std::string post_data = "grant_type=client_credentials";
+
+  // Make HTTP POST request
+  HTTPClient http;
+  http.begin("https://accounts.spotify.com/api/token");
+
+  // Convert auth_base64 to char* array
+  char auth_base64_cstr[auth_base64.length() + 1];
+  auth_base64.copy(auth_base64_cstr, auth_base64.length() + 1);
+  auth_base64_cstr[auth_base64.length()] = '\0';
+
+  // Add the Authorization header
+  http.addHeader("Authorization", "Basic " + String(auth_base64_cstr));
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  int httpCode = http.POST(post_data.c_str());
+
+  if (httpCode == HTTP_CODE_OK)
+  {
+    String response = http.getString();
+    Serial.println("Response: " + response);
+    // Parse response JSON to extract token
+    // You can use a JSON library to parse the response JSON
+  }
+  else
+  {
+    Serial.printf("HTTP POST request failed, error: %s\n", http.errorToString(httpCode).c_str());
+  }
+
+  http.end();
+}
+
+#pragma endregion
+// ******************************************* END SPOTIFY COVER ART ******************************************
+
 // ******************************************* BEGIN AUDIO VISUALIZER *****************************************
 #pragma region AUDIO_VISUALIZER
 
@@ -1519,6 +1612,13 @@ void setup()
     }
     return;
   }
+
+  // Set your client ID and client secret
+  std::string client_id = "CLIENT_ID";
+  std::string client_secret = "CLIENT_SECRET";
+
+  // Get access token
+  getAccessToken(client_id, client_secret);
 
   server.begin();
 }
