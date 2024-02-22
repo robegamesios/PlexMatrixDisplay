@@ -1103,6 +1103,13 @@ void loopAudioVisualizer()
   float t = averageSum / (SAMPLEBLOCK / 2);
   gVU = max(t, (oldVU * 3 + t) / 4);
   oldVU = gVU;
+
+  if (selectedTheme == PLEX_COVER_ART_THEME)
+  {
+    DrawVUMeter(0);
+    return;
+  }
+
   if (gVU > DemoTreshold)
     LastDoNothingTime = millis(); // if there is signal in any off the bands[>2] then no demo mode
 
@@ -1168,95 +1175,93 @@ void loopAudioVisualizer()
     }
     bndcounter[band] += barHeight; // ten behoeve calibratie
 
-    if (selectedTheme == AUDIO_VISUALIZER_THEME)
+    // if there hasn't been much of a input signal for a longer time ( see settings ) go to demo mode
+    if ((millis() - LastDoNothingTime) > DemoAfterSec && DemoFlag == false)
     {
-      // if there hasn't been much of a input signal for a longer time ( see settings ) go to demo mode
-      if ((millis() - LastDoNothingTime) > DemoAfterSec && DemoFlag == false)
-      {
-        DemoFlag = true;
-        // first store current mode so we can go back to it after wake up
-        DemoModeMem = buttonPushCounter;
-        AutoModeMem = autoChangePatterns;
-        autoChangePatterns = false;
-        buttonPushCounter = 12;
-        dma_display->clearScreen();
-      }
-      // Wait,signal is back? then wakeup!
-      else if (DemoFlag == true && (millis() - LastDoNothingTime) < DemoAfterSec)
-      { //("In loop 2:  %d", millis() - LastDoNothingTime);
-        // while in demo the democounter was reset due to signal on one of the bars.
-        // So we need to exit demo mode.
-        dma_display->clearScreen();
-        buttonPushCounter = DemoModeMem;  // restore settings
-        autoChangePatterns = AutoModeMem; // restore settings
-        DemoFlag = false;
-      }
-      // Now visualize those bar heights
-      switch (buttonPushCounter)
-      {
-      case 0:
-        PeakDirection = down;
-        BoxedBars(band, barHeight);
-        BluePeak(band);
-        break;
-
-      case 1:
-        PeakDirection = down;
-        BoxedBars2(band, barHeight);
-        BluePeak(band);
-        break;
-      case 2:
-        PeakDirection = down;
-        BoxedBars3(band, barHeight);
-        RedPeak(band);
-        break;
-      case 3:
-        PeakDirection = down;
-        RedBars(band, barHeight);
-        BluePeak(band);
-        break;
-      case 4:
-        PeakDirection = down;
-        ColorBars(band, barHeight);
-        break;
-      case 5:
-        PeakDirection = down;
-        Twins(band, barHeight);
-        WhitePeak(band);
-        break;
-      case 6:
-        PeakDirection = down;
-        Twins2(band, barHeight);
-        WhitePeak(band);
-        break;
-      case 7:
-        PeakDirection = down;
-        TriBars(band, barHeight);
-        TriPeak(band);
-        break;
-      case 8:
-        PeakDirection = up;
-        TriBars(band, barHeight);
-        TriPeak(band);
-        break;
-      case 9:
-        PeakDirection = down;
-        centerBars(band, barHeight);
-        break;
-      case 10:
-        PeakDirection = down;
-        centerBars2(band, barHeight);
-        break;
-      case 11:
-        PeakDirection = down;
-        BlackBars(band, barHeight);
-        DoublePeak(band);
-        break;
-      case 12:
-        make_fire(); // go to demo mode
-        break;
-      }
+      DemoFlag = true;
+      // first store current mode so we can go back to it after wake up
+      DemoModeMem = buttonPushCounter;
+      AutoModeMem = autoChangePatterns;
+      autoChangePatterns = false;
+      buttonPushCounter = 12;
+      dma_display->clearScreen();
     }
+    // Wait,signal is back? then wakeup!
+    else if (DemoFlag == true && (millis() - LastDoNothingTime) < DemoAfterSec)
+    { //("In loop 2:  %d", millis() - LastDoNothingTime);
+      // while in demo the democounter was reset due to signal on one of the bars.
+      // So we need to exit demo mode.
+      dma_display->clearScreen();
+      buttonPushCounter = DemoModeMem;  // restore settings
+      autoChangePatterns = AutoModeMem; // restore settings
+      DemoFlag = false;
+    }
+    // Now visualize those bar heights
+    switch (buttonPushCounter)
+    {
+    case 0:
+      PeakDirection = down;
+      BoxedBars(band, barHeight);
+      BluePeak(band);
+      break;
+
+    case 1:
+      PeakDirection = down;
+      BoxedBars2(band, barHeight);
+      BluePeak(band);
+      break;
+    case 2:
+      PeakDirection = down;
+      BoxedBars3(band, barHeight);
+      RedPeak(band);
+      break;
+    case 3:
+      PeakDirection = down;
+      RedBars(band, barHeight);
+      BluePeak(band);
+      break;
+    case 4:
+      PeakDirection = down;
+      ColorBars(band, barHeight);
+      break;
+    case 5:
+      PeakDirection = down;
+      Twins(band, barHeight);
+      WhitePeak(band);
+      break;
+    case 6:
+      PeakDirection = down;
+      Twins2(band, barHeight);
+      WhitePeak(band);
+      break;
+    case 7:
+      PeakDirection = down;
+      TriBars(band, barHeight);
+      TriPeak(band);
+      break;
+    case 8:
+      PeakDirection = up;
+      TriBars(band, barHeight);
+      TriPeak(band);
+      break;
+    case 9:
+      PeakDirection = down;
+      centerBars(band, barHeight);
+      break;
+    case 10:
+      PeakDirection = down;
+      centerBars2(band, barHeight);
+      break;
+    case 11:
+      PeakDirection = down;
+      BlackBars(band, barHeight);
+      DoublePeak(band);
+      break;
+    case 12:
+      make_fire(); // go to demo mode
+      break;
+    }
+
     // Save oldBarHeights for averaging later
     oldBarHeights[band] = barHeight;
   }
@@ -1268,15 +1273,8 @@ void loopAudioVisualizer()
   }
   loopcounter++;
 
-  if (selectedTheme == AUDIO_VISUALIZER_THEME)
-  {
-    if (buttonPushCounter != 12)
-      DrawVUMeter(0); // Draw it when not in screensaver mode
-  }
-  else
-  {
-    DrawVUMeter(0);
-  }
+  if (buttonPushCounter != 12)
+    DrawVUMeter(0); // Draw it when not in screensaver mode
 
   // Decay peak
   EVERY_N_MILLISECONDS(Fallingspeed)
@@ -1309,16 +1307,13 @@ void loopAudioVisualizer()
   EVERY_N_MILLISECONDS(10)
   colorTimer++; // Used in some of the patterns
 
-  if (selectedTheme == AUDIO_VISUALIZER_THEME)
+  EVERY_N_SECONDS(secToChangePattern)
   {
-    EVERY_N_SECONDS(secToChangePattern)
+    // if (FastLED.getBrightness() == 0) FastLED.setBrightness(BRIGHTNESSMARK);  //Re-enable if lights are "off"
+    if (autoChangePatterns)
     {
-      // if (FastLED.getBrightness() == 0) FastLED.setBrightness(BRIGHTNESSMARK);  //Re-enable if lights are "off"
-      if (autoChangePatterns)
-      {
-        buttonPushCounter = (buttonPushCounter + 1) % 12;
-        dma_display->clearScreen();
-      }
+      buttonPushCounter = (buttonPushCounter + 1) % 12;
+      dma_display->clearScreen();
     }
   }
 } // loop end
