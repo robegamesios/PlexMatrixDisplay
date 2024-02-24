@@ -304,10 +304,9 @@ int drawImagefromFile(const char *imageFileUri, int offset)
 // ******************************************* BEGIN GLOBAL VARS AND UTILS ************************************
 #pragma region GLOBAL_VARS_AND_UTILS
 
-char plexServerIp[60];
-char plexServerPort[60];
-char plexServerToken[80];
-char defaultPlexPort[60] = "32400";
+char plexServerIp[20];
+char plexServerPort[10];
+char plexServerToken[100];
 bool shouldSaveConfig = false;
 
 String scrollingText = "";
@@ -391,7 +390,7 @@ String escapeSpecialCharacters(const String &jsonString)
 #define WM_PLEX_SERVER_IP_LABEL "plexServerIp"
 #define WM_PLEX_SERVER_PORT_LABEL "plexServerPort"
 #define WM_PLEX_SERVER_TOKEN_LABEL "plexServerToken"
-#define PMD_CONFIG_JSON "/pmd_config.json"
+#define TUNEFRAME_CONFIG_JSON "/tuneframe_config.json"
 
 WiFiManager wifiManager;
 
@@ -413,11 +412,11 @@ void resetWifi()
 
 void fetchPlexConfigFile()
 {
-  if (SPIFFS.exists(PMD_CONFIG_JSON))
+  if (SPIFFS.exists(TUNEFRAME_CONFIG_JSON))
   {
     // file exists, reading and loading
     Serial.println("reading config file");
-    File configFile = SPIFFS.open(PMD_CONFIG_JSON, "r");
+    File configFile = SPIFFS.open(TUNEFRAME_CONFIG_JSON, "r");
     if (configFile)
     {
       Serial.println("opened config file");
@@ -436,7 +435,7 @@ void fetchPlexConfigFile()
 
           // Ensure null-termination and copy to plexServerIp and plexServerToken
           strlcpy(plexServerIp, tempPlexServerIp, sizeof(plexServerIp));
-          strlcpy(plexServerPort, tempPlexServerPort ? tempPlexServerPort : defaultPlexPort, sizeof(plexServerPort)); // Assign default value if port is not present
+          strlcpy(plexServerPort, tempPlexServerPort, sizeof(plexServerPort)); 
           strlcpy(plexServerToken, tempPlexServerToken, sizeof(plexServerToken));
           Serial.println("Plex Server IP: " + String(plexServerIp));
           Serial.println("Plex Server Port: " + String(plexServerPort));
@@ -473,7 +472,7 @@ void saveConfig(const char *plexServerIp, const char *plexServerPort, const char
   json[WM_PLEX_SERVER_PORT_LABEL] = plexServerPort;   // Assigning C-style strings directly
   json[WM_PLEX_SERVER_TOKEN_LABEL] = plexServerToken; // Assigning C-style strings directly
 
-  File configFile = SPIFFS.open(PMD_CONFIG_JSON, "w");
+  File configFile = SPIFFS.open(TUNEFRAME_CONFIG_JSON, "w");
   if (!configFile)
   {
     Serial.println("failed to open config file for writing");
@@ -499,17 +498,9 @@ void saveConfigCallback()
 void wifiConnect()
 {
   bool resp;
-  wifiManager.setSaveConfigCallback(saveConfigCallback);
-
-  WiFiManagerParameter plexServerIpParam(WM_PLEX_SERVER_IP_LABEL, "Plex Server IP Address", plexServerIp, 40);
-  WiFiManagerParameter plexServerPortParam(WM_PLEX_SERVER_PORT_LABEL, "Plex Server Port Number (defaults to 32400)", plexServerPort, 40);
-  WiFiManagerParameter plexServerTokenParam(WM_PLEX_SERVER_TOKEN_LABEL, "Plex Server Auth Token", plexServerToken, 60);
 
   wifiManager.setTitle("TUNEFRAME Wifi Setup");
   wifiManager.setMenu(_menu);
-  wifiManager.addParameter(&plexServerIpParam);
-  wifiManager.addParameter(&plexServerPortParam);
-  wifiManager.addParameter(&plexServerTokenParam);
 
   resp = wifiManager.autoConnect("TUNEFRAME Wifi Setup");
 
@@ -522,16 +513,6 @@ void wifiConnect()
   else
   {
     Serial.println("connected!");
-    // save the custom parameters
-    if (shouldSaveConfig)
-    {
-      strncpy(plexServerIp, plexServerIpParam.getValue(), 40);
-      strncpy(plexServerPort, plexServerPortParam.getValue(), 40);
-      strncpy(plexServerToken, plexServerTokenParam.getValue(), 60);
-
-      saveConfig(plexServerIp, plexServerPort, plexServerToken);
-      restartDevice();
-    }
   }
 }
 
@@ -1528,7 +1509,7 @@ void updateAudioVisualizerSettings(int pattern)
 #include <WebServer.h>
 #include <ESPmDNS.h>
 #include <Update.h>
-#include "PMDWebPage.h"
+#include "TuneFrameWebPage.h"
 
 WiFiServer server(80);
 
