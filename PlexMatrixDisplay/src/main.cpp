@@ -1,5 +1,6 @@
 #define AUDIO_VISUALIZER_THEME 100
-#define PLEX_COVER_ART_THEME 200
+#define PLEX_ALBUM_ART_THEME 200
+#define SPOTIFY_ALBUM_ART_THEME 201
 #define GIF_ART_THEME 210
 #define CLOCKWISE_CANVAS_THEME 0
 #define CLOCKWISE_MARIO_THEME 1
@@ -284,13 +285,13 @@ void scrollingPrintCenter2(const char *buf, int y)
   }
 }
 
-int drawImagefromFile(const char *imageFileUri)
+int drawImagefromFile(const char *imageFileUri, int offset)
 {
   unsigned long lTime = millis();
   lTime = millis();
   jpeg.open((const char *)imageFileUri, myOpen, myClose, myRead, mySeek, JPEGDraw);
   // int decodeStatus = jpeg.decode(0, 0, 0);
-  int decodeStatus = jpeg.decode(8, 9, 0);
+  int decodeStatus = jpeg.decode(offset, 9, 0);
   jpeg.close();
   Serial.print("Time taken to decode and display Image (ms): ");
   Serial.println(millis() - lTime);
@@ -299,6 +300,86 @@ int drawImagefromFile(const char *imageFileUri)
 
 #pragma endregion
 // ******************************************* END MATRIX DISPLAY *********************************************
+
+// ******************************************* BEGIN GLOBAL VARS AND UTILS ************************************
+#pragma region GLOBAL_VARS_AND_UTILS
+
+char plexServerIp[60];
+char plexServerPort[60];
+char plexServerToken[80];
+char defaultPlexPort[60] = "32400";
+bool shouldSaveConfig = false;
+
+String scrollingText = "";
+String lowerScrollingText = "";
+String lastAlbumArtURL = ""; // Variable to store the last downloaded album art URL
+
+char spotifyImageUrl[160]; // Assuming the URL won't exceed 160 characters
+
+String decodeHtmlEntities(String text)
+{
+  String decodedText = text;
+  decodedText.replace("&quot;", "\"");
+  decodedText.replace("&amp;", "&");
+  decodedText.replace("&apos;", "'");
+  decodedText.replace("&lt;", "<");
+  decodedText.replace("&gt;", ">");
+  decodedText.replace("&#8217;", "'");
+  decodedText.replace("&#8216;", "'");
+  decodedText.replace("&#39;", "'");
+  // Add more replacements as needed
+
+  return decodedText;
+}
+
+void resetAlbumArtVariables()
+{
+  scrollingText = "";
+  lowerScrollingText = "";
+  lastAlbumArtURL = "";
+}
+
+void deleteAlbumArt()
+{
+  if (SPIFFS.exists(ALBUM_ART) == true)
+  {
+    Serial.println("Removing existing image");
+    SPIFFS.remove(ALBUM_ART);
+  }
+}
+
+// Function to escape double quote characters, remove newlines, and extra whitespace
+String escapeSpecialCharacters(const String &jsonString)
+{
+  String escapedString;
+  bool insideQuotes = false;
+  for (char c : jsonString)
+  {
+    if (c == '"')
+    {
+      insideQuotes = !insideQuotes;
+      escapedString += c;
+    }
+    else if (c == '\n' || c == '\r')
+    {
+      // Skip newlines
+      continue;
+    }
+    else if (c == ' ' && !insideQuotes)
+    {
+      // Skip extra whitespace outside quotes
+      continue;
+    }
+    else
+    {
+      escapedString += c;
+    }
+  }
+  return escapedString;
+}
+
+#pragma endregion
+// ******************************************* END GLOBAL VARS AND UTILS **************************************
 
 // ******************************************* BEGIN WIFI *****************************************************
 #pragma region WIFI
@@ -315,16 +396,11 @@ int drawImagefromFile(const char *imageFileUri)
 WiFiManager wifiManager;
 
 std::vector<const char *> _menu = {"wifi", "exit"};
-char plexServerIp[60];
-char plexServerPort[60];
-char plexServerToken[80];
-char defaultPlexPort[60] = "32400";
-bool shouldSaveConfig = false;
 
 void restartDevice()
 {
   clearImage();
-  printCenter("REBOOTING..", 30);
+  printCenter("RESTARTING..", 30);
   delay(3000);
   ESP.restart();
 }
@@ -487,53 +563,16 @@ void savePreferences()
 
 void loadPreferences()
 {
-  int defaultTheme = (plexServerIp[0] == '\0' || plexServerPort[0] == '\0' || plexServerToken[0] == '\0') ? AUDIO_VISUALIZER_THEME : PLEX_COVER_ART_THEME;
-  selectedTheme = preferences.getUInt(PREF_SELECTED_THEME, defaultTheme);
+  selectedTheme = preferences.getUInt(PREF_SELECTED_THEME, AUDIO_VISUALIZER_THEME);
 }
 
 #pragma endregion
 // ******************************************* END PREFERENCES ************************************************
 
-// ******************************************* BEGIN PLEX COVER ART *******************************************
-#pragma region PLEX_COVER_ART
+// ******************************************* BEGIN PLEX ALBUM ART *******************************************
+#pragma region PLEX_ALBUM_ART
 
-String scrollingText = "";
-String lowerScrollingText = "";
-String lastAlbumArtURL = ""; // Variable to store the last downloaded album art URL
-
-String decodeHtmlEntities(String text)
-{
-  String decodedText = text;
-  decodedText.replace("&quot;", "\"");
-  decodedText.replace("&amp;", "&");
-  decodedText.replace("&apos;", "'");
-  decodedText.replace("&lt;", "<");
-  decodedText.replace("&gt;", ">");
-  decodedText.replace("&#8217;", "'");
-  decodedText.replace("&#8216;", "'");
-  decodedText.replace("&#39;", "'");
-  // Add more replacements as needed
-
-  return decodedText;
-}
-
-void resetPlexVariables()
-{
-  scrollingText = "";
-  lowerScrollingText = "";
-  lastAlbumArtURL = "";
-}
-
-void deleteAlbumArt()
-{
-  if (SPIFFS.exists(ALBUM_ART) == true)
-  {
-    Serial.println("Removing existing image");
-    SPIFFS.remove(ALBUM_ART);
-  }
-}
-
-void downloadCoverArt(const char *relativeUrl, const char *trackTitle, const char *artistName)
+void downloadPlexAlbumArt(const char *relativeUrl, const char *trackTitle, const char *artistName)
 {
   HTTPClient http;
   // Construct the full URL by appending the relative URL to the base URL
@@ -559,7 +598,7 @@ void downloadCoverArt(const char *relativeUrl, const char *trackTitle, const cha
       if (SPIFFS.exists(ALBUM_ART))
       {
         Serial.println("Image downloaded and saved successfully");
-        drawImagefromFile(ALBUM_ART);
+        drawImagefromFile(ALBUM_ART, 8);
         scrollingText = trackTitle;
         lowerScrollingText = artistName;
       }
@@ -581,7 +620,7 @@ void downloadCoverArt(const char *relativeUrl, const char *trackTitle, const cha
   }
 }
 
-void getAlbumArt()
+void getPlexCurrentTrack()
 {
   HTTPClient http;
   // Construct the Plex API URL to get the currently playing item
@@ -665,7 +704,7 @@ void getAlbumArt()
                   coverArtURL.toCharArray(coverArtCharArray, coverArtURL.length() + 1);
 
                   // Download and save the thumbnail image
-                  downloadCoverArt(coverArtCharArray, trackTitleCharArray, artistNameCharArray);
+                  downloadPlexAlbumArt(coverArtCharArray, trackTitleCharArray, artistNameCharArray);
                   lastAlbumArtURL = coverArtURL; // Update the last downloaded album art URL
                 }
                 else
@@ -687,8 +726,8 @@ void getAlbumArt()
       }
       else
       {
-        Serial.println("No track is currently playing.");
-        resetPlexVariables();
+        // Serial.println("No track is currently playing.");
+        resetAlbumArtVariables();
         clearImage();
         printCenter("NO TRACK IS", 20);
         printCenter("CURRENTLY", 30);
@@ -698,7 +737,7 @@ void getAlbumArt()
     else
     {
       Serial.println("HTTP request failed");
-      resetPlexVariables();
+      resetAlbumArtVariables();
       clearImage();
       printCenter("HTTP REQUEST", 30);
       printCenter("FAILED", 40);
@@ -708,7 +747,7 @@ void getAlbumArt()
   else
   {
     Serial.println("Unable to connect to Plex server");
-    resetPlexVariables();
+    resetAlbumArtVariables();
     clearImage();
     printCenter("UNABLE TO", 20);
     printCenter("CONNECT TO", 30);
@@ -717,142 +756,290 @@ void getAlbumArt()
 }
 
 #pragma endregion
-// ******************************************* END PLEX COVER ART *********************************************
+// ******************************************* END PLEX ALBUM ART *********************************************
 
-// ******************************************* BEGIN SPOTIFY COVER ART ****************************************
-#pragma region SPOTIFY_COVER_ART
+// ******************************************* BEGIN SPOTIFY ALBUM ART ****************************************
+#pragma region SPOTIFY_ALBUM_ART
 
-#include <string>
+const char *CLIENT_ID = "clientID";
+const char *CLIENT_SECRET = "clientSecret";
+const int PORT = 5173;
+const char *REDIRECT_URI = "http://192.168.50.112/callback/";
+const char *encodedRedirectURI = "http%3A%2F%2F192.168.50.112%2Fcallback%2F";
 
-String access_token = "";
+const char *SCOPE = "user-read-playback-state,user-read-currently-playing";
 
-// Base64 encoding function
-std::string base64_encode(const std::string &str)
+const char *CODE = "AQC6KHkJbxnOMtc2j7sIA58lZzZiaQGSyIDSOv3j4CdJ-ziKS0iG6354L2zyKofr1uQrfdDzvPc4FfUS1CAynBfJm_2EQuRxGnpn1Yg1Q4NFL2tGbKhvxvmKumdcCId30G9hoNzPnY-2WOxQSP804t1MxEFCoQmnr6W6-WHX0LHbPP2XJZcaOhJloVDwREapjDWwlMJPcMG_Mz4uUaKDfQ6YAYV13vJ9UByC4lSZZJaWFePH9y8V7ZQq";
+
+void getSpotifyAccessToken()
 {
-  static const char *b64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  std::string encoded;
-  int i = 0;
-  int j = 0;
-  unsigned char char_array_3[3];
-  unsigned char char_array_4[4];
-
-  for (unsigned char c : str)
-  {
-    char_array_3[i++] = c;
-    if (i == 3)
-    {
-      char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
-      char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
-      char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
-      char_array_4[3] = char_array_3[2] & 0x3f;
-
-      for (i = 0; (i < 4); i++)
-        encoded += b64chars[char_array_4[i]];
-      i = 0;
-    }
-  }
-
-  if (i)
-  {
-    for (j = i; j < 3; j++)
-      char_array_3[j] = '\0';
-
-    char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
-    char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
-    char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
-
-    for (j = 0; (j < i + 1); j++)
-      encoded += b64chars[char_array_4[j]];
-
-    while ((i++ < 3))
-      encoded += '=';
-  }
-
-  return encoded;
-}
-
-void getAccessToken(const std::string &client_id, const std::string &client_secret)
-{
-  // Construct authorization header
-  std::string auth = client_id + ":" + client_secret;
-  std::string auth_base64 = base64_encode(auth);
-
-  // Construct POST data
-  std::string post_data = "grant_type=client_credentials";
-
-  // Make HTTP POST request
   HTTPClient http;
-  http.begin("https://accounts.spotify.com/api/token");
 
-  // Convert auth_base64 to char* array
-  char auth_base64_cstr[auth_base64.length() + 1];
-  auth_base64.copy(auth_base64_cstr, auth_base64.length() + 1);
-  auth_base64_cstr[auth_base64.length()] = '\0';
+  String url = "https://accounts.spotify.com/api/token";
+  String postData = "client_id=" + String(CLIENT_ID) + "&client_secret=" + String(CLIENT_SECRET) +
+                    "&grant_type=authorization_code&code=" + String(CODE) +
+                    "&redirect_uri=" + String(encodedRedirectURI);
 
-  // Add the Authorization header
-  http.addHeader("Authorization", "Basic " + String(auth_base64_cstr));
+  http.begin(url);
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");
-  int httpCode = http.POST(post_data.c_str());
 
-  if (httpCode == HTTP_CODE_OK)
+  int httpResponseCode = http.POST(postData);
+
+  if (httpResponseCode > 0)
   {
     String response = http.getString();
-    Serial.println("Response: " + response);
-
-    // Parse the JSON response
-    DynamicJsonDocument doc(1024);
-    DeserializationError error = deserializeJson(doc, response);
-    if (!error)
-    {
-      access_token = doc["access_token"].as<String>();
-      Serial.println("Access token: " + access_token);
-    }
-    else
-    {
-      Serial.print("deserializeJson() failed: ");
-      Serial.println(error.c_str());
-    }
+    Serial.println("HTTP Response code: " + String(httpResponseCode));
+    Serial.println("Response payload: " + response);
   }
   else
   {
-    Serial.printf("HTTP POST request failed, error: %s\n", http.errorToString(httpCode).c_str());
+    Serial.println("Error on HTTP request");
   }
 
   http.end();
 }
 
-void getCurrentSong(const String &access_token)
+// void login()
+// {
+//   // Redirect user to Spotify login page
+//   String redirectUrl = String("https://accounts.spotify.com") + "/authorize?response_type=code&client_id=" + String(CLIENT_ID) + "&scope=" + String(SCOPE) + "&state=123456&redirect_uri=" + String(REDIRECT_URI) + "&prompt=consent";
+
+//   wifiClient.setCACert(spotify_server_cert);
+//   httpClient.begin(wifiClient, redirectUrl);
+//   int statusCode = httpClient.GET();
+//   Serial.print("HTTP CODE = ");
+//   Serial.println(statusCode);
+
+//   // Check if redirection was successful
+//   if (statusCode == HTTP_CODE_FOUND)
+//   {
+//     Serial.println("Redirecting...");
+
+//     String location = httpClient.header("Location");
+//     // Follow the redirection by making another request
+//     httpClient.end(); // Close the previous connection
+//     httpClient.begin(wifiClient, location);
+//     statusCode = httpClient.GET();
+//     Serial.print("Redirected HTTP CODE = ");
+//     Serial.println(statusCode);
+
+//     if (statusCode == HTTP_CODE_OK)
+//     {
+//       // Process the response
+//       // Assuming you extract the code and call getToken function as before
+//     }
+//     else
+//     {
+//       Serial.println("Error in following redirection.");
+//     }
+//   }
+//   else if (statusCode == HTTP_CODE_OK)
+//   {
+//     // Process the response
+//     // Assuming you extract the code and call getToken function as before
+//   }
+//   else
+//   {
+//     Serial.println("Error in initial request.");
+//   }
+
+//   httpClient.end();
+// }
+
+void downloadSpotifyAlbumArt(String imageUrl)
 {
+  if (imageUrl == lastAlbumArtURL)
+  {
+    Serial.println("Album art hasn't changed. Skipping download");
+    return;
+  }
+  deleteAlbumArt();
+
   HTTPClient http;
 
-  // Set up the URL
-  String url = "https://api.spotify.com/v1/me/player/currently-playing?additional_types=episode&market=IE";
-
-  // Set up the headers
-  http.begin(url);
-  http.addHeader("Authorization", "Bearer " + access_token);
-
-  // Make the GET request
-  int httpCode = http.GET();
-  Serial.println("********HTTPCODE: ");
-  Serial.println(httpCode);
-  if (httpCode == HTTP_CODE_OK)
+  // Send GET request to the image URL
+  if (http.begin(imageUrl))
   {
-    String payload = http.getString();
-    Serial.println("Current song: " + payload);
-    // Parse the response to extract song details
-    // You can use a JSON library to parse the JSON response
+    int httpCode = http.GET();
+    if (httpCode == HTTP_CODE_OK)
+    {
+      // Successfully downloaded the image, now save it to SPIFFS
+      File file = SPIFFS.open(ALBUM_ART, FILE_WRITE);
+      if (!file)
+      {
+        Serial.println("Failed to create file");
+        return;
+      }
+      http.writeToStream(&file);
+      file.close();
+      // Check if the file exists
+      if (SPIFFS.exists(ALBUM_ART))
+      {
+        Serial.println("Image downloaded and saved successfully");
+        lastAlbumArtURL = imageUrl; // Update the last downloaded album art URL
+        drawImagefromFile(ALBUM_ART, 0);
+      }
+      else
+      {
+        Serial.println("Failed to save image to SPIFFS");
+      }
+    }
+    else
+    {
+      Serial.print("Failed to download image. HTTP error code: ");
+      Serial.println(httpCode);
+    }
+    http.end();
   }
   else
   {
-    Serial.printf("HTTP GET request failed, error: %s\n", http.errorToString(httpCode).c_str());
+    Serial.println("Failed to connect to image URL");
+  }
+}
+
+void processSpotifyJson(const char *response)
+{
+  char songName[100]; // Assuming the song name won't exceed 100 characters
+  songName[0] = '\0';
+  char artistName[60]; // Assuming the artist name won't exceed 60 characters
+  artistName[0] = '\0';
+  spotifyImageUrl[0] = '\0';
+
+  // Find the start index of the last occurrence of the "name" key
+  const char *nameKeyStart = strstr(response, "\"name\":");
+  const char *lastNameKeyStart = NULL;
+  while (nameKeyStart != NULL)
+  {
+    lastNameKeyStart = nameKeyStart;
+    nameKeyStart = strstr(nameKeyStart + 1, "\"name\":");
+  }
+
+  // If the last "name" key is found, get its associated value
+  if (lastNameKeyStart != NULL)
+  {
+    const char *songNameStart = lastNameKeyStart + 8;       // Move to the start of the value
+    const char *songNameEnd = strstr(songNameStart, "\","); // Find the end of the value
+    if (songNameEnd != NULL && songNameStart < songNameEnd)
+    {
+      strncpy(songName, songNameStart, songNameEnd - songNameStart);
+      songName[songNameEnd - songNameStart] = '\0'; // Null-terminate the string
+      // Serial.println("Song Name: " + String(songName));
+      scrollingText = String(songName);
+    }
+    else
+    {
+      Serial.println("Song name not found!");
+    }
+  }
+  else
+  {
+    Serial.println("No 'name' key found in the JSON response!");
+  }
+
+  // Find the start and end indices of the "name" field for the artist
+  const char *artistNameStart = strstr(response, "\"artists\"");
+  artistNameStart = strstr(artistNameStart, "\"name\":\"") + 8;
+  const char *artistNameEnd = strstr(artistNameStart, "\",");
+  if (artistNameStart != NULL && artistNameEnd != NULL && artistNameStart < artistNameEnd)
+  {
+    strncpy(artistName, artistNameStart, artistNameEnd - artistNameStart);
+    artistName[artistNameEnd - artistNameStart] = '\0'; // Null-terminate the string
+    // Serial.println("Artist Name: " + String(artistName));
+    lowerScrollingText = String(artistName);
+  }
+  else
+  {
+    Serial.println("Artist name not found!");
+  }
+
+  // Extract the URL of the 64x64 image
+  // Find the start index of the "images" key
+  const char *imagesKeyStart = strstr(response, "\"images\"");
+  if (imagesKeyStart != NULL)
+  {
+    // Find the start index of the array of images
+    const char *imagesArrayStart = strstr(imagesKeyStart, "[");
+    if (imagesArrayStart != NULL)
+    {
+      // Find the start index of the last image URL
+      const char *lastImageUrlStart = NULL;
+      const char *nextImageUrl = strstr(imagesArrayStart, "\"url\"");
+      while (nextImageUrl != NULL)
+      {
+        lastImageUrlStart = nextImageUrl;
+        nextImageUrl = strstr(lastImageUrlStart + 1, "\"url\"");
+      }
+
+      if (lastImageUrlStart != NULL)
+      {
+        // Find the start and end indices of the last image URL
+        const char *lastImageUrlValueStart = strstr(lastImageUrlStart, "https://");
+        const char *lastImageUrlEnd = strstr(lastImageUrlValueStart, "\",");
+        if (lastImageUrlValueStart != NULL && lastImageUrlEnd != NULL)
+        {
+          strncpy(spotifyImageUrl, lastImageUrlValueStart, lastImageUrlEnd - lastImageUrlValueStart);
+          spotifyImageUrl[lastImageUrlEnd - lastImageUrlValueStart] = '\0'; // Null-terminate the string
+          // Serial.println("Image URL: " + String(imageUrl));
+        }
+        else
+        {
+          Serial.println("Invalid format for the last image URL!");
+        }
+      }
+      else
+      {
+        Serial.println("No image URLs found in the 'images' array!");
+      }
+    }
+    else
+    {
+      Serial.println("No array found for 'images' key!");
+    }
+  }
+  else
+  {
+    Serial.println("No 'images' key found in the JSON response!");
+  }
+}
+
+void getSpotifyCurrentTrack()
+{
+  // Your API endpoint
+  String endpoint = "https://api.spotify.com/v1/me/player/currently-playing";
+
+  // Authorization header
+  String authorizationHeader = "Bearer BQB_XO3ybMVq_zyyYR6bZWLfvAWPhh_me_Zd2ByfdvkfbI5FyptYSNfdiMR_qP-WBsuR3YPGQAmx-Dxcr8NipT8vcNS6Enkru_PtX1U-qCTl0KZ02PPhLALnKy9VWUQQBksHz_ZaRnQTl8nywXHoxXIq0QDRnl_H4-CCrIoV8SLxDtBHF7UhQL14Lp9K9fyaa-MOYCtfwpt8Gw";
+
+  // Perform HTTP GET request
+  HTTPClient http;
+  http.begin(endpoint);
+  http.addHeader("Authorization", authorizationHeader);
+
+  int httpCode = http.GET();
+
+  if (httpCode > 0)
+  {
+    String httpResponse = http.getString();
+    // Serial.println("HTTP response code: " + String(httpCode));
+    // Serial.println("Response: " + httpResponse);
+
+    // Escape double quotes
+    String escapedHttpResponse = escapeSpecialCharacters(httpResponse);
+    // Convert to const char*
+    const char *jsonCString = escapedHttpResponse.c_str();
+
+    processSpotifyJson(jsonCString);
+  }
+  else
+  {
+    Serial.println("HTTP request failed");
   }
 
   http.end();
 }
 
 #pragma endregion
-// ******************************************* END SPOTIFY COVER ART ******************************************
+// ******************************************* END SPOTIFY ALBUM ART ******************************************
 
 // ******************************************* BEGIN AUDIO VISUALIZER *****************************************
 #pragma region AUDIO_VISUALIZER
@@ -1104,7 +1291,7 @@ void loopAudioVisualizer()
   gVU = max(t, (oldVU * 3 + t) / 4);
   oldVU = gVU;
 
-  if (selectedTheme == PLEX_COVER_ART_THEME)
+  if (selectedTheme == PLEX_ALBUM_ART_THEME || selectedTheme == SPOTIFY_ALBUM_ART_THEME)
   {
     DrawVUMeter(0);
     return;
@@ -1381,15 +1568,14 @@ void processRequest(WiFiClient client, String method, String path, String key, S
       selectedTheme = value.toInt();
       if (selectedTheme != currentlyRunningTheme)
       {
-        resetPlexVariables();
+        resetAlbumArtVariables();
 
         client.println("HTTP/1.0 204 No Content");
         savePreferences();
         currentlyRunningTheme = selectedTheme;
-
         clearImage();
-        printCenter("REFRESHING..", 30);
-        delay(2000);
+
+        force_restart = true;
         return;
       }
     }
@@ -1650,13 +1836,6 @@ void setup()
     return;
   }
 
-  // Set your client ID and client secret
-  std::string client_id = "CLIENT_ID";
-  std::string client_secret = "CLIENT_SECRET";
-
-  // Get access token
-  getAccessToken(client_id, client_secret);
-
   server.begin();
 }
 
@@ -1669,16 +1848,29 @@ void loop()
 
     // Check album art every 5 seconds
     unsigned long currentMillis = millis();
-    if (selectedTheme == PLEX_COVER_ART_THEME)
+    if (selectedTheme == PLEX_ALBUM_ART_THEME)
     {
       if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval)
       {
-        // lastAlbumArtUpdateTime = currentMillis;
-        // getAlbumArt();
-        getCurrentSong(access_token);
+        lastAlbumArtUpdateTime = currentMillis;
+        getPlexCurrentTrack();
       }
-      // scrollingPrintCenter(scrollingText.c_str(), 7);
-      // scrollingPrintCenter2(lowerScrollingText.c_str(), 62);
+      scrollingPrintCenter(scrollingText.c_str(), 7);
+      scrollingPrintCenter2(lowerScrollingText.c_str(), 62);
+    }
+    else if (selectedTheme == SPOTIFY_ALBUM_ART_THEME)
+    {
+      if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval)
+      {
+        lastAlbumArtUpdateTime = currentMillis;
+        getSpotifyCurrentTrack();
+        if (strlen(spotifyImageUrl) > 0)
+        {
+          downloadSpotifyAlbumArt(String(spotifyImageUrl));
+        }
+      }
+      scrollingPrintCenter(scrollingText.c_str(), 7);
+      scrollingPrintCenter2(lowerScrollingText.c_str(), 62);
     }
   }
 }
