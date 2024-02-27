@@ -1,5 +1,6 @@
 #define AUDIO_VISUALIZER_THEME 100
-#define PLEX_COVER_ART_THEME 200
+#define PLEX_ALBUM_ART_THEME 200
+#define SPOTIFY_ALBUM_ART_THEME 201
 #define GIF_ART_THEME 210
 #define CLOCKWISE_CANVAS_THEME 0
 #define CLOCKWISE_MARIO_THEME 1
@@ -284,13 +285,13 @@ void scrollingPrintCenter2(const char *buf, int y)
   }
 }
 
-int drawImagefromFile(const char *imageFileUri)
+int drawImagefromFile(const char *imageFileUri, int offset)
 {
   unsigned long lTime = millis();
   lTime = millis();
   jpeg.open((const char *)imageFileUri, myOpen, myClose, myRead, mySeek, JPEGDraw);
   // int decodeStatus = jpeg.decode(0, 0, 0);
-  int decodeStatus = jpeg.decode(8, 9, 0);
+  int decodeStatus = jpeg.decode(offset, 8, 0);
   jpeg.close();
   Serial.print("Time taken to decode and display Image (ms): ");
   Serial.println(millis() - lTime);
@@ -300,202 +301,8 @@ int drawImagefromFile(const char *imageFileUri)
 #pragma endregion
 // ******************************************* END MATRIX DISPLAY *********************************************
 
-// ******************************************* BEGIN WIFI *****************************************************
-#pragma region WIFI
-
-#include <WiFi.h>
-#include <WiFiManager.h>
-#include <HTTPClient.h>
-
-#define WM_PLEX_SERVER_IP_LABEL "plexServerIp"
-#define WM_PLEX_SERVER_PORT_LABEL "plexServerPort"
-#define WM_PLEX_SERVER_TOKEN_LABEL "plexServerToken"
-#define PMD_CONFIG_JSON "/pmd_config.json"
-
-WiFiManager wifiManager;
-
-std::vector<const char *> _menu = {"wifi", "exit"};
-char plexServerIp[60];
-char plexServerPort[60];
-char plexServerToken[80];
-char defaultPlexPort[60] = "32400";
-bool shouldSaveConfig = false;
-
-void restartDevice()
-{
-  clearImage();
-  printCenter("REBOOTING..", 30);
-  delay(3000);
-  ESP.restart();
-}
-
-void resetWifi()
-{
-  printCenter("RESETTING WiFi..", 30);
-  wifiManager.resetSettings();
-}
-
-void fetchPlexConfigFile()
-{
-  if (SPIFFS.exists(PMD_CONFIG_JSON))
-  {
-    // file exists, reading and loading
-    Serial.println("reading config file");
-    File configFile = SPIFFS.open(PMD_CONFIG_JSON, "r");
-    if (configFile)
-    {
-      Serial.println("opened config file");
-      StaticJsonDocument<512> json;
-      DeserializationError error = deserializeJson(json, configFile);
-      serializeJsonPretty(json, Serial);
-      if (!error)
-      {
-        Serial.println("\nparsed json");
-
-        if (json.containsKey(WM_PLEX_SERVER_IP_LABEL) && json.containsKey(WM_PLEX_SERVER_TOKEN_LABEL))
-        {
-          const char *tempPlexServerIp = json[WM_PLEX_SERVER_IP_LABEL];
-          const char *tempPlexServerPort = json[WM_PLEX_SERVER_PORT_LABEL];
-          const char *tempPlexServerToken = json[WM_PLEX_SERVER_TOKEN_LABEL];
-
-          // Ensure null-termination and copy to plexServerIp and plexServerToken
-          strlcpy(plexServerIp, tempPlexServerIp, sizeof(plexServerIp));
-          strlcpy(plexServerPort, tempPlexServerPort ? tempPlexServerPort : defaultPlexPort, sizeof(plexServerPort)); // Assign default value if port is not present
-          strlcpy(plexServerToken, tempPlexServerToken, sizeof(plexServerToken));
-          Serial.println("Plex Server IP: " + String(plexServerIp));
-          Serial.println("Plex Server Port: " + String(plexServerPort));
-          Serial.println("Plex Server Token: " + String(plexServerToken));
-        }
-        else
-        {
-          Serial.println("Config missing Plex server IP or Auth token");
-        }
-      }
-      else
-      {
-        Serial.println("failed to load json config");
-      }
-      configFile.close();
-    }
-    else
-    {
-      Serial.println("Failed to open config file");
-    }
-  }
-  else
-  {
-    Serial.println("Config file does not exist");
-  }
-}
-
-// Save wifi config to SPIFF
-void saveConfig(const char *plexServerIp, const char *plexServerPort, const char *plexServerToken)
-{
-  Serial.println(F("Saving config"));
-  StaticJsonDocument<512> json;
-  json[WM_PLEX_SERVER_IP_LABEL] = plexServerIp;       // Assigning C-style strings directly
-  json[WM_PLEX_SERVER_PORT_LABEL] = plexServerPort;   // Assigning C-style strings directly
-  json[WM_PLEX_SERVER_TOKEN_LABEL] = plexServerToken; // Assigning C-style strings directly
-
-  File configFile = SPIFFS.open(PMD_CONFIG_JSON, "w");
-  if (!configFile)
-  {
-    Serial.println("failed to open config file for writing");
-    return; // Exit the function early if file opening fails
-  }
-
-  serializeJsonPretty(json, Serial);
-  if (serializeJson(json, configFile) == 0)
-  {
-    Serial.println(F("Failed to write to file"));
-  }
-  configFile.close();
-  shouldSaveConfig = false;
-}
-
-// callback notifying us of the need to save config
-void saveConfigCallback()
-{
-  Serial.println("Should save config");
-  shouldSaveConfig = true;
-}
-
-void wifiConnect()
-{
-  bool resp;
-  wifiManager.setSaveConfigCallback(saveConfigCallback);
-
-  WiFiManagerParameter plexServerIpParam(WM_PLEX_SERVER_IP_LABEL, "Plex Server IP Address", plexServerIp, 40);
-  WiFiManagerParameter plexServerPortParam(WM_PLEX_SERVER_PORT_LABEL, "Plex Server Port Number (defaults to 32400)", plexServerPort, 40);
-  WiFiManagerParameter plexServerTokenParam(WM_PLEX_SERVER_TOKEN_LABEL, "Plex Server Auth Token", plexServerToken, 60);
-
-  wifiManager.setTitle("TUNEFRAME Wifi Setup");
-  wifiManager.setMenu(_menu);
-  wifiManager.addParameter(&plexServerIpParam);
-  wifiManager.addParameter(&plexServerPortParam);
-  wifiManager.addParameter(&plexServerTokenParam);
-
-  resp = wifiManager.autoConnect("TUNEFRAME Wifi Setup");
-
-  if (!resp)
-  {
-    Serial.println("Failed to connect");
-    printCenter("FAILED to Connect", 30);
-    restartDevice();
-  }
-  else
-  {
-    Serial.println("connected!");
-    // save the custom parameters
-    if (shouldSaveConfig)
-    {
-      strncpy(plexServerIp, plexServerIpParam.getValue(), 40);
-      strncpy(plexServerPort, plexServerPortParam.getValue(), 40);
-      strncpy(plexServerToken, plexServerTokenParam.getValue(), 60);
-
-      saveConfig(plexServerIp, plexServerPort, plexServerToken);
-      restartDevice();
-    }
-  }
-}
-
-boolean isConnected()
-{
-  return WiFi.status() == WL_CONNECTED;
-}
-
-#pragma endregion
-// ******************************************* END WIFI *******************************************************
-
-// ******************************************* BEGIN PREFERENCES **********************************************
-#pragma region PREFERENCES
-
-#include <Preferences.h>
-
-Preferences preferences;
-const char *PREF_SELECTED_THEME = "selectedTheme";
-const char *PREF_AV_PATTERN = "avPattern";
-const char *PREF_GIF_ART_NAME = "gifArtName";
-const char *PREF_PLEX_CREDENTIALS = "plexCredentials";
-uint8_t selectedTheme;
-uint8_t currentlyRunningTheme;
-
-void savePreferences()
-{
-  preferences.putUInt(PREF_SELECTED_THEME, selectedTheme);
-}
-
-void loadPreferences()
-{
-  int defaultTheme = (plexServerIp[0] == '\0' || plexServerPort[0] == '\0' || plexServerToken[0] == '\0') ? AUDIO_VISUALIZER_THEME : PLEX_COVER_ART_THEME;
-  selectedTheme = preferences.getUInt(PREF_SELECTED_THEME, defaultTheme);
-}
-
-#pragma endregion
-// ******************************************* END PREFERENCES ************************************************
-
-// ******************************************* BEGIN PLEX COVER ART *******************************************
-#pragma region PLEX_COVER_ART
+// ******************************************* BEGIN GLOBAL VARS AND UTILS ************************************
+#pragma region GLOBAL_VARS_AND_UTILS
 
 String scrollingText = "";
 String lowerScrollingText = "";
@@ -517,7 +324,7 @@ String decodeHtmlEntities(String text)
   return decodedText;
 }
 
-void resetPlexVariables()
+void resetAlbumArtVariables()
 {
   scrollingText = "";
   lowerScrollingText = "";
@@ -533,7 +340,237 @@ void deleteAlbumArt()
   }
 }
 
-void downloadCoverArt(const char *relativeUrl, const char *trackTitle, const char *artistName)
+// Function to escape double quote characters, remove newlines, and extra whitespace
+String escapeSpecialCharacters(const String &jsonString)
+{
+  String escapedString;
+  bool insideQuotes = false;
+  for (char c : jsonString)
+  {
+    if (c == '"')
+    {
+      insideQuotes = !insideQuotes;
+      escapedString += c;
+    }
+    else if (c == '\n' || c == '\r')
+    {
+      // Skip newlines
+      continue;
+    }
+    else if (c == ' ' && !insideQuotes)
+    {
+      // Skip extra whitespace outside quotes
+      continue;
+    }
+    else
+    {
+      escapedString += c;
+    }
+  }
+  return escapedString;
+}
+
+String urlEncode(const char *msg)
+{
+  const char *hex = "0123456789ABCDEF";
+  String encodedMsg = "";
+
+  while (*msg != '\0')
+  {
+    if (('a' <= *msg && *msg <= 'z') ||
+        ('A' <= *msg && *msg <= 'Z') ||
+        ('0' <= *msg && *msg <= '9') ||
+        *msg == '-' || *msg == '_' || *msg == '.' || *msg == '~')
+    {
+      encodedMsg += *msg;
+    }
+    else
+    {
+      encodedMsg += '%';
+      encodedMsg += hex[*msg >> 4];
+      encodedMsg += hex[*msg & 15];
+    }
+    msg++;
+  }
+
+  return encodedMsg;
+}
+
+#pragma endregion
+// ******************************************* END GLOBAL VARS AND UTILS **************************************
+
+// ******************************************* BEGIN WIFI *****************************************************
+#pragma region WIFI
+
+#include <WiFi.h>
+#include <WiFiManager.h>
+#include <HTTPClient.h>
+
+WiFiManager wifiManager;
+
+std::vector<const char *> _menu = {"wifi", "exit"};
+
+void restartDevice()
+{
+  clearImage();
+  printCenter("RESTARTING..", 30);
+  delay(3000);
+  ESP.restart();
+}
+
+void resetWifi()
+{
+  printCenter("RESETTING WiFi..", 30);
+  wifiManager.resetSettings();
+}
+
+void wifiConnect()
+{
+  bool resp;
+
+  wifiManager.setTitle("TUNEFRAME Wifi Setup");
+  wifiManager.setMenu(_menu);
+
+  resp = wifiManager.autoConnect("TUNEFRAME Wifi Setup");
+
+  if (!resp)
+  {
+    Serial.println("Failed to connect");
+    printCenter("FAILED to Connect", 30);
+    restartDevice();
+  }
+  else
+  {
+    Serial.println("connected!");
+  }
+}
+
+boolean isConnected()
+{
+  return WiFi.status() == WL_CONNECTED;
+}
+
+#pragma endregion
+// ******************************************* END WIFI *******************************************************
+
+// ******************************************* BEGIN PREFERENCES **********************************************
+#pragma region PREFERENCES
+
+#include <Preferences.h>
+
+Preferences preferences;
+const char *PREF_SELECTED_THEME = "selectedTheme";
+const char *PREF_AV_PATTERN = "avPattern";
+const char *PREF_GIF_ART_NAME = "gifArtName";
+const char *PREF_PLEX_CREDENTIALS = "plexCredentials";
+const char *PREF_SPOTIFY_CREDENTIALS = "spotifyCredentials";
+
+uint8_t selectedTheme;
+uint8_t currentlyRunningTheme;
+
+void savePreferences()
+{
+  preferences.putUInt(PREF_SELECTED_THEME, selectedTheme);
+}
+
+void loadPreferences()
+{
+  selectedTheme = preferences.getUInt(PREF_SELECTED_THEME, AUDIO_VISUALIZER_THEME);
+}
+
+#pragma endregion
+// ******************************************* END PREFERENCES ************************************************
+
+// ******************************************* BEGIN PLEX ALBUM ART *******************************************
+#pragma region PLEX_ALBUM_ART
+
+#define WM_PLEX_SERVER_IP_LABEL "plexServerIp"
+#define WM_PLEX_SERVER_PORT_LABEL "plexServerPort"
+#define WM_PLEX_SERVER_TOKEN_LABEL "plexServerToken"
+#define PLEX_CONFIG_JSON "/plex_config.json"
+
+char plexServerIp[20];
+char plexServerPort[10];
+char plexServerToken[100];
+
+void fetchPlexConfigFile()
+{
+  if (SPIFFS.exists(PLEX_CONFIG_JSON))
+  {
+    // file exists, reading and loading
+    Serial.println("reading config file");
+    File configFile = SPIFFS.open(PLEX_CONFIG_JSON, "r");
+    if (configFile)
+    {
+      Serial.println("opened config file");
+      StaticJsonDocument<512> json;
+      DeserializationError error = deserializeJson(json, configFile);
+      serializeJsonPretty(json, Serial);
+      if (!error)
+      {
+        Serial.println("\nparsed json");
+
+        if (json.containsKey(WM_PLEX_SERVER_IP_LABEL) && json.containsKey(WM_PLEX_SERVER_PORT_LABEL) && json.containsKey(WM_PLEX_SERVER_TOKEN_LABEL))
+        {
+          const char *tempPlexServerIp = json[WM_PLEX_SERVER_IP_LABEL];
+          const char *tempPlexServerPort = json[WM_PLEX_SERVER_PORT_LABEL];
+          const char *tempPlexServerToken = json[WM_PLEX_SERVER_TOKEN_LABEL];
+
+          // Ensure null-termination and copy to plexServerIp and plexServerToken
+          strlcpy(plexServerIp, tempPlexServerIp, sizeof(plexServerIp));
+          strlcpy(plexServerPort, tempPlexServerPort, sizeof(plexServerPort));
+          strlcpy(plexServerToken, tempPlexServerToken, sizeof(plexServerToken));
+          Serial.println("Plex Server IP: " + String(plexServerIp));
+          Serial.println("Plex Server Port: " + String(plexServerPort));
+          Serial.println("Plex Server Token: " + String(plexServerToken));
+        }
+        else
+        {
+          Serial.println("Config missing Plex server IP or Port number or Auth token");
+        }
+      }
+      else
+      {
+        Serial.println("failed to load json config");
+      }
+      configFile.close();
+    }
+    else
+    {
+      Serial.println("Failed to open config file");
+    }
+  }
+  else
+  {
+    Serial.println("Config file does not exist");
+  }
+}
+
+// Save Plex config to SPIFF
+void savePlexConfig(const char *serverIp, const char *serverPort, const char *serverToken)
+{
+  Serial.println(F("Saving config"));
+  StaticJsonDocument<512> json;
+  json[WM_PLEX_SERVER_IP_LABEL] = serverIp;       // Assigning C-style strings directly
+  json[WM_PLEX_SERVER_PORT_LABEL] = serverPort;   // Assigning C-style strings directly
+  json[WM_PLEX_SERVER_TOKEN_LABEL] = serverToken; // Assigning C-style strings directly
+
+  File configFile = SPIFFS.open(PLEX_CONFIG_JSON, "w");
+  if (!configFile)
+  {
+    Serial.println("failed to open config file for writing");
+    return; // Exit the function early if file opening fails
+  }
+
+  serializeJsonPretty(json, Serial);
+  if (serializeJson(json, configFile) == 0)
+  {
+    Serial.println(F("Failed to write to file"));
+  }
+  configFile.close();
+}
+
+void downloadPlexAlbumArt(const char *relativeUrl, const char *trackTitle, const char *artistName)
 {
   HTTPClient http;
   // Construct the full URL by appending the relative URL to the base URL
@@ -550,7 +587,7 @@ void downloadCoverArt(const char *relativeUrl, const char *trackTitle, const cha
       File file = SPIFFS.open(ALBUM_ART, FILE_WRITE);
       if (!file)
       {
-        Serial.println("Failed to create file");
+        Serial.println("Failed toc create file");
         return;
       }
       http.writeToStream(&file);
@@ -559,7 +596,7 @@ void downloadCoverArt(const char *relativeUrl, const char *trackTitle, const cha
       if (SPIFFS.exists(ALBUM_ART))
       {
         Serial.println("Image downloaded and saved successfully");
-        drawImagefromFile(ALBUM_ART);
+        drawImagefromFile(ALBUM_ART, 8);
         scrollingText = trackTitle;
         lowerScrollingText = artistName;
       }
@@ -581,7 +618,7 @@ void downloadCoverArt(const char *relativeUrl, const char *trackTitle, const cha
   }
 }
 
-void getAlbumArt()
+void getPlexCurrentTrack()
 {
   HTTPClient http;
   // Construct the Plex API URL to get the currently playing item
@@ -665,7 +702,7 @@ void getAlbumArt()
                   coverArtURL.toCharArray(coverArtCharArray, coverArtURL.length() + 1);
 
                   // Download and save the thumbnail image
-                  downloadCoverArt(coverArtCharArray, trackTitleCharArray, artistNameCharArray);
+                  downloadPlexAlbumArt(coverArtCharArray, trackTitleCharArray, artistNameCharArray);
                   lastAlbumArtURL = coverArtURL; // Update the last downloaded album art URL
                 }
                 else
@@ -687,8 +724,8 @@ void getAlbumArt()
       }
       else
       {
-        Serial.println("No track is currently playing.");
-        resetPlexVariables();
+        // Serial.println("No track is currently playing.");
+        resetAlbumArtVariables();
         clearImage();
         printCenter("NO TRACK IS", 20);
         printCenter("CURRENTLY", 30);
@@ -698,7 +735,7 @@ void getAlbumArt()
     else
     {
       Serial.println("HTTP request failed");
-      resetPlexVariables();
+      resetAlbumArtVariables();
       clearImage();
       printCenter("HTTP REQUEST", 30);
       printCenter("FAILED", 40);
@@ -708,7 +745,7 @@ void getAlbumArt()
   else
   {
     Serial.println("Unable to connect to Plex server");
-    resetPlexVariables();
+    resetAlbumArtVariables();
     clearImage();
     printCenter("UNABLE TO", 20);
     printCenter("CONNECT TO", 30);
@@ -717,7 +754,373 @@ void getAlbumArt()
 }
 
 #pragma endregion
-// ******************************************* END PLEX COVER ART *********************************************
+// ******************************************* END PLEX ALBUM ART *********************************************
+
+// ******************************************* BEGIN SPOTIFY ALBUM ART ****************************************
+#pragma region SPOTIFY_ALBUM_ART
+
+#include <base64.h>
+
+#define WM_SPOTIFY_CLIENT_ID_LABEL "spotifyClientId"
+#define WM_SPOTIFY_CLIENT_SECRET_LABEL "spotifyClientSecret"
+#define WM_SPOTIFY_REFRESH_TOKEN_LABEL "spotifyRefreshToken"
+#define SPOTIFY_CONFIG_JSON "/spotify_config.json"
+
+char spotifyClientId[64];
+char spotifyClientSecret[64];
+char spotifyRefreshToken[200];
+
+char spotifyImageUrl[128];      // Assuming the URL won't exceed 128 characters
+char refreshedAccessToken[256]; // Adjust the size as needed
+
+void getRefreshToken()
+{
+  Serial.println("***********Fetching Refresh Token");
+  printCenter("REFRESHING", 25);
+  printCenter("ACCESS TOKEN", 35);
+
+  // Construct the authorization header
+  String credentials = String(spotifyClientId) + ":" + String(spotifyClientSecret);
+  String authHeader = "Basic " + base64::encode(credentials);
+
+  // Construct the request payload
+  String postData = "grant_type=refresh_token&refresh_token=" + String(spotifyRefreshToken);
+
+  // Configure HTTP client
+  HTTPClient http;
+  http.begin("https://accounts.spotify.com/api/token");
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  http.addHeader("Authorization", authHeader);
+
+  // Send the POST request
+  int httpResponseCode = http.POST(postData);
+
+  if (httpResponseCode == HTTP_CODE_OK)
+  {
+    String response = http.getString();
+    // Serial.println("HTTP Response code: " + String(httpResponseCode));
+    // Serial.println("Response payload: " + response);
+
+    // Extract the refresh_token using index-based parsing
+    const char *responseChar = response.c_str();
+    const char *refreshTokenStart = strstr(responseChar, "\"access_token\"");
+
+    if (refreshTokenStart != nullptr)
+    {
+      refreshTokenStart = strstr(refreshTokenStart, ":") + 2; // Move to the actual token value
+      const char *refreshTokenEnd = strchr(refreshTokenStart, '\"');
+
+      if (refreshTokenEnd != nullptr)
+      {
+        strncpy(refreshedAccessToken, refreshTokenStart, refreshTokenEnd - refreshTokenStart);
+        refreshedAccessToken[refreshTokenEnd - refreshTokenStart] = '\0'; // Null-terminate the string
+        // Serial.println("Refreshed Access Token: " + String(refreshedAccessToken));
+        clearImage();
+      }
+      else
+      {
+        Serial.println("Unable to find the end of refreshed access token");
+      }
+    }
+    else
+    {
+      Serial.println("Unable to find refreshed access token in the response");
+    }
+  }
+  else
+  {
+    Serial.println("Error on HTTP request");
+  }
+
+  http.end();
+}
+
+void fetchSpotifyConfigFile()
+{
+  if (SPIFFS.exists(SPOTIFY_CONFIG_JSON))
+  {
+    // file exists, reading and loading
+    Serial.println("reading config file");
+    File configFile = SPIFFS.open(SPOTIFY_CONFIG_JSON, "r");
+    if (configFile)
+    {
+      Serial.println("opened config file");
+      StaticJsonDocument<512> json;
+      DeserializationError error = deserializeJson(json, configFile);
+      serializeJsonPretty(json, Serial);
+      if (!error)
+      {
+        Serial.println("\nparsed json");
+
+        if (json.containsKey(WM_SPOTIFY_CLIENT_ID_LABEL) && json.containsKey(WM_SPOTIFY_CLIENT_SECRET_LABEL) && json.containsKey(WM_SPOTIFY_REFRESH_TOKEN_LABEL))
+        {
+          const char *tempSpotifyClientId = json[WM_SPOTIFY_CLIENT_ID_LABEL];
+          const char *tempSpotifyClientSecret = json[WM_SPOTIFY_CLIENT_SECRET_LABEL];
+          const char *tempSpotifyRefreshToken = json[WM_SPOTIFY_REFRESH_TOKEN_LABEL];
+
+          // Ensure null-termination and copy to plexServerIp and plexServerToken
+          strlcpy(spotifyClientId, tempSpotifyClientId, sizeof(spotifyClientId));
+          strlcpy(spotifyClientSecret, tempSpotifyClientSecret, sizeof(spotifyClientSecret));
+          strlcpy(spotifyRefreshToken, tempSpotifyRefreshToken, sizeof(spotifyRefreshToken));
+          // Serial.println("Spotify Client ID: " + String(spotifyClientId));
+          // Serial.println("Spotify Client Secret: " + String(spotifyClientSecret));
+          // Serial.println("Spotify Refresh Token: " + String(spotifyRefreshToken));
+        }
+        else
+        {
+          Serial.println("Config missing Spotify credentials");
+        }
+      }
+      else
+      {
+        Serial.println("failed to load json config");
+      }
+      configFile.close();
+    }
+    else
+    {
+      Serial.println("Failed to open config file");
+    }
+  }
+  else
+  {
+    Serial.println("Config file does not exist");
+  }
+}
+
+// Save Plex config to SPIFF
+void saveSpotifyConfig(const char *clientId, const char *clientSecret, const char *refreshToken)
+{
+  Serial.println(F("Saving config"));
+  StaticJsonDocument<512> json;
+  json[WM_SPOTIFY_CLIENT_ID_LABEL] = clientId;         // Assigning C-style strings directly
+  json[WM_SPOTIFY_CLIENT_SECRET_LABEL] = clientSecret; // Assigning C-style strings directly
+  json[WM_SPOTIFY_REFRESH_TOKEN_LABEL] = refreshToken; // Assigning C-style strings directly
+
+  File configFile = SPIFFS.open(SPOTIFY_CONFIG_JSON, "w");
+  if (!configFile)
+  {
+    Serial.println("failed to open config file for writing");
+    return; // Exit the function early if file opening fails
+  }
+
+  serializeJsonPretty(json, Serial);
+  if (serializeJson(json, configFile) == 0)
+  {
+    Serial.println(F("Failed to write to file"));
+  }
+  configFile.close();
+}
+
+void downloadSpotifyAlbumArt(String imageUrl)
+{
+  if (imageUrl == lastAlbumArtURL)
+  {
+    // Serial.println("Album art hasn't changed. Skipping download");
+    return;
+  }
+  deleteAlbumArt();
+
+  HTTPClient http;
+
+  // Send GET request to the image URL
+  if (http.begin(imageUrl))
+  {
+    int httpCode = http.GET();
+    if (httpCode == HTTP_CODE_OK)
+    {
+      // Successfully downloaded the image, now save it to SPIFFS
+      File file = SPIFFS.open(ALBUM_ART, FILE_WRITE);
+      if (!file)
+      {
+        Serial.println("Failed to create file");
+        return;
+      }
+      http.writeToStream(&file);
+      file.close();
+      // Check if the file exists
+      if (SPIFFS.exists(ALBUM_ART))
+      {
+        Serial.println("Image downloaded and saved successfully");
+        lastAlbumArtURL = imageUrl; // Update the last downloaded album art URL
+        drawImagefromFile(ALBUM_ART, 0);
+      }
+      else
+      {
+        Serial.println("Failed to save image to SPIFFS");
+      }
+    }
+    else
+    {
+      Serial.print("Failed to download image. HTTP error code: ");
+      Serial.println(httpCode);
+    }
+    http.end();
+  }
+  else
+  {
+    Serial.println("Failed to connect to image URL");
+  }
+}
+
+void processSpotifyJson(const char *response)
+{
+  char songName[64]; // Assuming the song name won't exceed 64 characters
+  songName[0] = '\0';
+  char artistName[64]; // Assuming the artist name won't exceed 64 characters
+  artistName[0] = '\0';
+  spotifyImageUrl[0] = '\0';
+
+  // Find the start index of the last occurrence of the "name" key
+  const char *nameKeyStart = strstr(response, "\"name\":");
+
+  if (nameKeyStart == nullptr)
+  {
+    Serial.println("*******Null name key, nothing to process");
+    printCenter("NO TRACK IS", 20);
+    printCenter("CURRENTLY", 30);
+    printCenter("PLAYING", 40);
+    return;
+  }
+
+  const char *lastNameKeyStart = NULL;
+  while (nameKeyStart != NULL)
+  {
+    lastNameKeyStart = nameKeyStart;
+    nameKeyStart = strstr(nameKeyStart + 1, "\"name\":");
+  }
+
+  // If the last "name" key is found, get its associated value
+  if (lastNameKeyStart != NULL)
+  {
+    const char *songNameStart = lastNameKeyStart + 8;       // Move to the start of the value
+    const char *songNameEnd = strstr(songNameStart, "\","); // Find the end of the value
+    if (songNameEnd != NULL && songNameStart < songNameEnd)
+    {
+      strncpy(songName, songNameStart, songNameEnd - songNameStart);
+      songName[songNameEnd - songNameStart] = '\0'; // Null-terminate the string
+      // Serial.println("Song Name: " + String(songName));
+      scrollingText = String(songName);
+    }
+    else
+    {
+      Serial.println("Song name not found!");
+    }
+  }
+  else
+  {
+    Serial.println("No 'name' key found in the JSON response!");
+  }
+
+  // Find the start and end indices of the "name" field for the artist
+  const char *artistNameStart = strstr(response, "\"artists\"");
+  artistNameStart = strstr(artistNameStart, "\"name\":\"") + 8;
+  const char *artistNameEnd = strstr(artistNameStart, "\",");
+  if (artistNameStart != NULL && artistNameEnd != NULL && artistNameStart < artistNameEnd)
+  {
+    strncpy(artistName, artistNameStart, artistNameEnd - artistNameStart);
+    artistName[artistNameEnd - artistNameStart] = '\0'; // Null-terminate the string
+    // Serial.println("Artist Name: " + String(artistName));
+    lowerScrollingText = String(artistName);
+  }
+  else
+  {
+    Serial.println("Artist name not found!");
+  }
+
+  // Extract the URL of the 64x64 image
+  // Find the start index of the "images" key
+  const char *imagesKeyStart = strstr(response, "\"images\"");
+  if (imagesKeyStart != NULL)
+  {
+    // Find the start index of the array of images
+    const char *imagesArrayStart = strstr(imagesKeyStart, "[");
+    if (imagesArrayStart != NULL)
+    {
+      // Find the start index of the last image URL
+      const char *lastImageUrlStart = NULL;
+      const char *nextImageUrl = strstr(imagesArrayStart, "\"url\"");
+      while (nextImageUrl != NULL)
+      {
+        lastImageUrlStart = nextImageUrl;
+        nextImageUrl = strstr(lastImageUrlStart + 1, "\"url\"");
+      }
+
+      if (lastImageUrlStart != NULL)
+      {
+        // Find the start and end indices of the last image URL
+        const char *lastImageUrlValueStart = strstr(lastImageUrlStart, "https://");
+        const char *lastImageUrlEnd = strstr(lastImageUrlValueStart, "\",");
+        if (lastImageUrlValueStart != NULL && lastImageUrlEnd != NULL)
+        {
+          strncpy(spotifyImageUrl, lastImageUrlValueStart, lastImageUrlEnd - lastImageUrlValueStart);
+          spotifyImageUrl[lastImageUrlEnd - lastImageUrlValueStart] = '\0'; // Null-terminate the string
+          // Serial.println("Image URL: " + String(imageUrl));
+        }
+        else
+        {
+          Serial.println("Invalid format for the last image URL!");
+        }
+      }
+      else
+      {
+        Serial.println("No image URLs found in the 'images' array!");
+      }
+    }
+    else
+    {
+      Serial.println("No array found for 'images' key!");
+    }
+  }
+  else
+  {
+    Serial.println("No 'images' key found in the JSON response!");
+  }
+}
+
+void getSpotifyCurrentTrack()
+{
+  // Your API endpoint
+  String endpoint = "https://api.spotify.com/v1/me/player/currently-playing";
+
+  // Authorization header
+  String authorizationHeader = "Bearer " + String(refreshedAccessToken);
+
+  // Perform HTTP GET request
+  HTTPClient http;
+  http.begin(endpoint);
+  http.addHeader("Authorization", authorizationHeader);
+
+  int httpCode = http.GET();
+
+  if (httpCode == 401)
+  {
+    Serial.println("***** Access token expired");
+    restartDevice();
+  }
+  else if (httpCode > 0)
+  {
+    String httpResponse = http.getString();
+    // Serial.println("HTTP response code: " + String(httpCode));
+    // Serial.println("Response: " + httpResponse);
+
+    // Escape double quotes
+    String escapedHttpResponse = escapeSpecialCharacters(httpResponse);
+    // Convert to const char*
+    const char *jsonCString = escapedHttpResponse.c_str();
+
+    processSpotifyJson(jsonCString);
+  }
+  else
+  {
+    Serial.println("HTTP request failed");
+  }
+
+  http.end();
+}
+
+#pragma endregion
+// ******************************************* END SPOTIFY ALBUM ART ******************************************
 
 // ******************************************* BEGIN AUDIO VISUALIZER *****************************************
 #pragma region AUDIO_VISUALIZER
@@ -969,7 +1372,7 @@ void loopAudioVisualizer()
   gVU = max(t, (oldVU * 3 + t) / 4);
   oldVU = gVU;
 
-  if (selectedTheme == PLEX_COVER_ART_THEME)
+  if (selectedTheme == PLEX_ALBUM_ART_THEME || selectedTheme == SPOTIFY_ALBUM_ART_THEME)
   {
     DrawVUMeter(0);
     return;
@@ -1206,7 +1609,7 @@ void updateAudioVisualizerSettings(int pattern)
 #include <WebServer.h>
 #include <ESPmDNS.h>
 #include <Update.h>
-#include "PMDWebPage.h"
+#include "TuneFrameWebPage.h"
 
 WiFiServer server(80);
 
@@ -1246,15 +1649,14 @@ void processRequest(WiFiClient client, String method, String path, String key, S
       selectedTheme = value.toInt();
       if (selectedTheme != currentlyRunningTheme)
       {
-        resetPlexVariables();
+        resetAlbumArtVariables();
 
         client.println("HTTP/1.0 204 No Content");
         savePreferences();
         currentlyRunningTheme = selectedTheme;
-
         clearImage();
-        printCenter("REFRESHING..", 30);
-        delay(2000);
+
+        force_restart = true;
         return;
       }
     }
@@ -1300,8 +1702,40 @@ void processRequest(WiFiClient client, String method, String path, String key, S
       authToken = (authToken.length() == 0) ? plexServerToken : authToken;
 
       client.println("HTTP/1.0 204 No Content");
-      saveConfig(serverAddress.c_str(), serverPort.c_str(), authToken.c_str());
+      savePlexConfig(serverAddress.c_str(), serverPort.c_str(), authToken.c_str());
       force_restart = true;
+      return;
+    }
+
+    if (key == PREF_SPOTIFY_CREDENTIALS)
+    {
+      String payload = value;
+      Serial.println("Received payload: " + value);
+
+      // Extract server address, server port, and auth token from the payload
+      int firstDelimiterIndex = payload.indexOf(',');
+      int secondDelimiterIndex = payload.indexOf(',', firstDelimiterIndex + 1);
+
+      String clientId = payload.substring(0, firstDelimiterIndex);
+      String clientSecretAndRefreshToken = payload.substring(firstDelimiterIndex + 1);
+      int thirdDelimiterIndex = clientSecretAndRefreshToken.indexOf(',');
+      String clientSecret = clientSecretAndRefreshToken.substring(0, thirdDelimiterIndex);
+      String refreshToken = clientSecretAndRefreshToken.substring(thirdDelimiterIndex + 1);
+
+      // Print the extracted values (for debugging)
+      Serial.println("Spotify Client Id: " + clientId);
+      Serial.println("Spotify Client secret: " + clientSecret);
+      Serial.println("Spotify Refresh Token: " + refreshToken);
+
+      // Check if parameters are empty and provide default values if necessary
+      clientId = (clientId.length() == 0) ? spotifyClientId : clientId;
+      clientSecret = (clientSecret.length() == 0) ? spotifyClientSecret : clientSecret;
+      refreshToken = (refreshToken.length() == 0) ? spotifyRefreshToken : refreshToken;
+
+      client.println("HTTP/1.0 204 No Content");
+      saveSpotifyConfig(clientId.c_str(), clientSecret.c_str(), refreshToken.c_str());
+      force_restart = true;
+      return;
     }
   }
 }
@@ -1401,9 +1835,6 @@ void setup()
 
   printCenter("TUNEFRAME", 30);
 
-  setupI2S();
-  fetchPlexConfigFile();
-
   wifiConnect();
 
   while (!isConnected())
@@ -1435,7 +1866,16 @@ void setup()
   clearImage();
   Serial.println("\r\nInitialisation done.");
 
-  if (selectedTheme == GIF_ART_THEME)
+  if (selectedTheme == PLEX_ALBUM_ART_THEME)
+  {
+    fetchPlexConfigFile();
+  }
+  else if (selectedTheme == SPOTIFY_ALBUM_ART_THEME)
+  {
+    fetchSpotifyConfigFile();
+    getRefreshToken();
+  }
+  else if (selectedTheme == GIF_ART_THEME)
   {
     Serial.print("will update firmware to gifArtFirmware");
     // update firmware to canvas
@@ -1514,6 +1954,11 @@ void setup()
     }
     return;
   }
+  else
+  {
+    // Setup audio visualizer
+    setupI2S();
+  }
 
   server.begin();
 }
@@ -1523,19 +1968,37 @@ void loop()
   if (isConnected())
   {
     handleHttpRequest();
-    loopAudioVisualizer();
 
     // Check album art every 5 seconds
     unsigned long currentMillis = millis();
-    if (selectedTheme == PLEX_COVER_ART_THEME)
+    if (selectedTheme == PLEX_ALBUM_ART_THEME)
     {
       if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval)
       {
         lastAlbumArtUpdateTime = currentMillis;
-        getAlbumArt();
+        getPlexCurrentTrack();
       }
-      scrollingPrintCenter(scrollingText.c_str(), 7);
+      scrollingPrintCenter(scrollingText.c_str(), 5);
       scrollingPrintCenter2(lowerScrollingText.c_str(), 62);
+    }
+    else if (selectedTheme == SPOTIFY_ALBUM_ART_THEME)
+    {
+      if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval)
+      {
+        lastAlbumArtUpdateTime = currentMillis;
+        getSpotifyCurrentTrack();
+        if (strlen(spotifyImageUrl) > 0)
+        {
+          downloadSpotifyAlbumArt(String(spotifyImageUrl));
+        }
+      }
+      scrollingPrintCenter(scrollingText.c_str(), 5);
+      scrollingPrintCenter2(lowerScrollingText.c_str(), 62);
+    }
+    else
+    {
+      // Default to audio visualizer
+      loopAudioVisualizer();
     }
   }
 }
