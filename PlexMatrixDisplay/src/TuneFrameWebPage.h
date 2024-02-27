@@ -122,7 +122,8 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
     <input type="text" id="clientId" name="clientId"><br><br>
     <label for="clientSecret">Client Secret:</label>
     <input type="text" id="clientSecret" name="clientSecret"><br><br>
-     <label for="refreshToken">Refresh Token:</label>
+    <a href="https://robegamesios.github.io/spotify-refresh-token/" target="_blank">Get your Refresh Token Here</a><br><br>
+    <label for="refreshToken">Refresh Token:</label>
     <input type="text" id="refreshToken" name="refreshToken"><br><br>
     <button onclick="updateSpotifyCredentials()">Save Settings</button><br><br>
     <a class="update-button" onclick="updatePreference('selectedTheme', 201)">Select</a>
