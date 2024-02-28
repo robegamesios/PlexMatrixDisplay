@@ -977,6 +977,8 @@ void processSpotifyJson(const char *response)
   if (nameKeyStart == nullptr)
   {
     Serial.println("*******Null name key, nothing to process");
+    resetAlbumArtVariables();
+    clearImage();
     printCenter("NO TRACK IS", 20);
     printCenter("CURRENTLY", 30);
     printCenter("PLAYING", 40);
