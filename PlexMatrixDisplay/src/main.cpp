@@ -340,6 +340,25 @@ void deleteAlbumArt()
   }
 }
 
+void displayNoTrackPlaying()
+{
+  // Serial.println("No track is currently playing.");
+  resetAlbumArtVariables();
+  clearImage();
+  printCenter("NO TRACK IS", 20);
+  printCenter("CURRENTLY", 30);
+  printCenter("PLAYING", 40);
+}
+
+void displayHttpRequestFailed()
+{
+  Serial.println("HTTP request failed");
+  resetAlbumArtVariables();
+  clearImage();
+  printCenter("HTTP REQUEST", 30);
+  printCenter("FAILED", 40);
+}
+
 // Function to escape double quote characters, remove newlines, and extra whitespace
 String escapeSpecialCharacters(const String &jsonString)
 {
@@ -629,7 +648,10 @@ void getPlexCurrentTrack()
     // Set the authentication token in the request headers
     http.addHeader("X-Plex-Token", plexServerToken);
     int httpCode = http.GET();
-    if (httpCode > 0)
+    // Serial.print("PlexAmp HTTP code: ");
+    // Serial.println(httpCode);
+
+    if (httpCode == 200)
     {
       String payload = http.getString();
       // Serial.println("*****************BEGIN PAYLOAD********************");
@@ -724,21 +746,12 @@ void getPlexCurrentTrack()
       }
       else
       {
-        // Serial.println("No track is currently playing.");
-        resetAlbumArtVariables();
-        clearImage();
-        printCenter("NO TRACK IS", 20);
-        printCenter("CURRENTLY", 30);
-        printCenter("PLAYING", 40);
+        displayNoTrackPlaying();
       }
     }
     else
     {
-      Serial.println("HTTP request failed");
-      resetAlbumArtVariables();
-      clearImage();
-      printCenter("HTTP REQUEST", 30);
-      printCenter("FAILED", 40);
+      displayHttpRequestFailed();
     }
     http.end();
   }
@@ -829,7 +842,7 @@ void getRefreshToken()
   }
   else
   {
-    Serial.println("Error on HTTP request");
+    displayHttpRequestFailed();
   }
 
   http.end();
@@ -974,14 +987,35 @@ void processSpotifyJson(const char *response)
   // Find the start index of the last occurrence of the "name" key
   const char *nameKeyStart = strstr(response, "\"name\":");
 
+  const char *isPlayingStart = strstr(response, "\"is_playing\"");
+  if (isPlayingStart != nullptr)
+  {
+    // Move to the value part after ":"
+    isPlayingStart = strchr(isPlayingStart, ':');
+
+    if (isPlayingStart != nullptr)
+    {
+      // Move to the actual value
+      isPlayingStart++;
+
+      // Check if it's 'true' or 'false'
+      if (strncmp(isPlayingStart, "true", 4) == 0)
+      {
+        // No-op continue
+      }
+      else if (strncmp(isPlayingStart, "false", 5) == 0)
+      {
+        // music player is paused.
+        displayNoTrackPlaying();
+        return;
+      }
+    }
+  }
+
   if (nameKeyStart == nullptr)
   {
     Serial.println("*******Null name key, nothing to process");
-    resetAlbumArtVariables();
-    clearImage();
-    printCenter("NO TRACK IS", 20);
-    printCenter("CURRENTLY", 30);
-    printCenter("PLAYING", 40);
+    displayNoTrackPlaying();
     return;
   }
 
@@ -1100,7 +1134,11 @@ void getSpotifyCurrentTrack()
     Serial.println("***** Access token expired");
     restartDevice();
   }
-  else if (httpCode > 0)
+  else if (httpCode == 204)
+  {
+    displayNoTrackPlaying();
+  }
+  else if (httpCode == 200)
   {
     String httpResponse = http.getString();
     // Serial.println("HTTP response code: " + String(httpCode));
@@ -1115,7 +1153,7 @@ void getSpotifyCurrentTrack()
   }
   else
   {
-    Serial.println("HTTP request failed");
+    displayHttpRequestFailed();
   }
 
   http.end();
@@ -1705,6 +1743,15 @@ void processRequest(WiFiClient client, String method, String path, String key, S
 
       client.println("HTTP/1.0 204 No Content");
       savePlexConfig(serverAddress.c_str(), serverPort.c_str(), authToken.c_str());
+
+      selectedTheme = PLEX_ALBUM_ART_THEME;
+      resetAlbumArtVariables();
+
+      client.println("HTTP/1.0 204 No Content");
+      savePreferences();
+      currentlyRunningTheme = selectedTheme;
+      clearImage();
+
       force_restart = true;
       return;
     }
@@ -1736,6 +1783,15 @@ void processRequest(WiFiClient client, String method, String path, String key, S
 
       client.println("HTTP/1.0 204 No Content");
       saveSpotifyConfig(clientId.c_str(), clientSecret.c_str(), refreshToken.c_str());
+
+      selectedTheme = SPOTIFY_ALBUM_ART_THEME;
+      resetAlbumArtVariables();
+
+      client.println("HTTP/1.0 204 No Content");
+      savePreferences();
+      currentlyRunningTheme = selectedTheme;
+      clearImage();
+
       force_restart = true;
       return;
     }
