@@ -73,6 +73,8 @@ SCK => PIN 33
 
 # Using a single Power Supply
 
+CAUTION: DO NOT CONNECT THE Vin 5V Pin to the power supply and also connect a micro-usb cable to your computer at the same time, this will fry your ESP32. If you're uploading code using the micro-usb cable, make sure the Vin 5V Pin is not connected to anything.
+
 If you want to use a single power supply for both the LED Panel and the ESP32, you can daisy chain from the 5V power supply and connect the positive (+) terminal to the Vin 5V Pin (no. 19 in the diagram) of the ESP32.
 
 # Software:
