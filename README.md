@@ -17,11 +17,13 @@ The project will cost less than $30 to build. You can get any of these items som
 4. Dupont cables ($2) - https://www.aliexpress.us/item/3256805941164824.html?spm=a2g0o.productlist.main.3.40e0e4fceP8JKN&algo_pvid=0921ba51-af56-45c3-827a-596400023cb8&algo_exp_id=0921ba51-af56-45c3-827a-596400023cb8-1&pdp_npi=4%40dis%21USD%213.13%210.99%21%21%2122.45%217.12%21%402103205217091454542188529e4d68%2112000035962714816%21sea%21US%210%21AB&curPageLogUid=82wePhoUlfkk&utparam-url=scene%3Asearch%7Cquery_from%3A
 5. 5V 2A power adapter (higher current the better) ($5) - https://www.aliexpress.us/item/3256802434250774.html?spm=a2g0o.productlist.main.17.61c928160Z0yhE&algo_pvid=d4b5595b-a54e-4474-b64a-14c91990539c&aem_p4p_detail=2024022820511014725752996342080000001570&algo_exp_id=d4b5595b-a54e-4474-b64a-14c91990539c-8&pdp_npi=4%40dis%21USD%216.84%210.99%21%21%216.84%210.99%21%402101fb0c17091822709174611e0ed6%2112000021491724526%21sea%21US%210%21AB&curPageLogUid=KhTauQnzDska&utparam-url=scene%3Asearch%7Cquery_from%3A&search_p4p_id=2024022820511014725752996342080000001570_9
    
-# Panel Pinout
+# Pinouts
 
 Pinout information can be found here: https://github.com/mrfaptastic/ESP32-HUB75-MatrixPanel-DMA. Below is the connection between the panel and the ESP32. Use female-to-female dupont cables to connect them together.
 
-Panel => ESP32
+![tuneframePinout](https://github.com/robegamesios/TUNEFRAME/assets/10041871/ff1a1cfb-e1f9-40e2-96bc-e4a88dcd2414)
+
+# LED Panel => ESP32
 
 R1 => PIN 25
 
@@ -29,11 +31,15 @@ G1 => PIN 26
 
 B1 => PIN 27
 
+N = GND => Connect to common ground (no. 14 on ESP32 diagram)
+
 R2 => PIN 14
 
 G2 => PIN 12
 
 B2 => PIN 13
+
+E => PIN 18
 
 A => PIN 23
 
@@ -43,11 +49,31 @@ C => PIN 5
 
 D => PIN 17
 
-E => PIN 18
+CK => PIN 16
+
+LS (also known as LAT) => 4
 
 OE => PIN 15
 
-CLK => PIN 16
+N = GND => Connect to common ground (no. 14 on ESP32 diagram)
+
+# INMP441 => ESP32
+
+SD => PIN 32
+
+VDD => 3.3V (no. 1 on ESP32 diagram)
+
+GND => Connect to common ground (no. 14 on ESP32 diagram)
+
+L/R => Connect to common ground (no. 14 on ESP32 diagram)
+
+WS => PIN 2
+
+SCK => PIN 33
+
+# Using a single Power Supply
+
+If you want to use a single power supply for both the LED Panel and the ESP32, you can daisy chain from the 5V power supply and connect the positive (+) terminal to the Vin 5V Pin (no. 19 in the diagram) of the ESP32.
 
 # Software:
 
