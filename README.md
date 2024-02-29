@@ -68,6 +68,15 @@ CLK => PIN 16
 1. Fork the TUNEFRAME repo or download the zip file.
 2. Import the project in Visual Studio Code using Platform.io. (I'm assuming you are familiar on how to import a platform.io project).
 
+# Get your PlexAmp Auth token:
+
+1. Login to your Plex Media Server using Chrome.
+2. Go to your music library, then right click on the page and click "Inspect".
+3. Go to the "elements" tab.
+4. Search for X-Plex-Token key. Your Auth token will be the characters squeezed between 2 X-Plex-Token keys.
+   ```
+   X-Plex-Token%3DThisIsYourAuthToken&X-Plex-Token
+
 # Fetching Spotify Refresh Token via Curl commands:
 
 1. Download `get-spotify-auth-code.js` from here: https://github.com/robegamesios/TUNEFRAME/blob/926691ebbc9ba7eea4be319e6fc88895b16115f2/misc/get-spotify-auth-code.js
