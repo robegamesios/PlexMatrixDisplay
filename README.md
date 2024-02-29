@@ -3,9 +3,9 @@
 ![tuneframe](https://github.com/robegamesios/TUNEFRAME/assets/10041871/6f5bf6e1-6c4b-49f1-a3ac-ad2c2bdf3d92)
 
 
-"TuneFrame" is an ESP32-powered LED matrix panel that serves as a dynamic music visualizer. It syncs captivating LED light patterns with your favorite tunes and displays album art from Spotify and PlexAmp, enhancing your listening experience with vibrant visuals.
+TuneFrame is an ESP32-powered LED matrix panel that serves as a dynamic music visualizer. It syncs captivating LED light patterns with your favorite tunes and displays album art from Spotify and PlexAmp, enhancing your listening experience with vibrant visuals.
 
-# Video tutorial : https://youtu.be/m5aLhCCSwWE
+# Video tutorial : https://youtu.be/m5aLhCCSwWE?si=qLfko10hiLxpDJDM
 
 # Hardware
 
