@@ -105,7 +105,9 @@ If you want to use a single power supply for both the LED Panel and the ESP32, y
    ```
    X-Plex-Token%3DThisIsYourAuthToken&X-Plex-Token
 
-# Fetching Spotify Refresh Token via Curl commands:
+# Fetching Spotify Refresh Token via Curl command:
+
+You can also get your spotify refresh token using this website: https://robegamesios.github.io/spotify-refresh-token/
 
 1. Download `get-spotify-auth-code.js` from here: https://github.com/robegamesios/TUNEFRAME/blob/926691ebbc9ba7eea4be319e6fc88895b16115f2/misc/get-spotify-auth-code.js
 2. Open `get-spotify-auth-code.js` and change lines 8 and 9 to use your Spotify Client ID and Client Secret. Then run it to get the authorization code.
