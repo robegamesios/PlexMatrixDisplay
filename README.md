@@ -1,12 +1,53 @@
 # TUNEFRAME
 
+![tuneframe](https://github.com/robegamesios/TUNEFRAME/assets/10041871/6f5bf6e1-6c4b-49f1-a3ac-ad2c2bdf3d92)
+
+
 "TuneFrame" is an ESP32-powered LED matrix panel that serves as a dynamic music visualizer. It syncs captivating LED light patterns with your favorite tunes and displays album art from Spotify and PlexAmp, enhancing your listening experience with vibrant visuals.
 
 # Video tutorial : https://youtu.be/m5aLhCCSwWE
 
 # Hardware
 
-TBD
+The project will cost less than $30 to build. You can get any of these items somewhere else, but I found Aliexpress to be the cheapest vendor.
+
+1. P3 64 x 64 LED Matrix Panel ($15) - https://www.aliexpress.us/item/3256803863694770.html?spm=a2g0o.productlist.main.3.4ff27a74nqpHbg&algo_pvid=bf682a3e-05b4-4958-92d1-a9cfc81a1af0&aem_p4p_detail=202402282054061388946146196280000774142&algo_exp_id=bf682a3e-05b4-4958-92d1-a9cfc81a1af0-1&pdp_npi=4%40dis%21USD%2133.12%2111.56%21%21%2133.12%2111.56%21%402101fb1117091824460494444e1dfb%2112000027861763733%21sea%21US%210%21AB&curPageLogUid=r7uBKgI8R3wV&utparam-url=scene%3Asearch%7Cquery_from%3A&search_p4p_id=202402282054061388946146196280000774142_2
+2. INMP441 Omnidirectional Microphone module ($1) - https://www.aliexpress.us/item/3256805923157007.html?spm=a2g0o.productlist.main.1.19185e2fcMhZ5D&algo_pvid=af6c30c3-4e38-4dc2-aad6-335a03bf63e0&algo_exp_id=af6c30c3-4e38-4dc2-aad6-335a03bf63e0-0&pdp_npi=4%40dis%21USD%214.95%210.99%21%21%2135.51%217.13%21%402103080717091453651281542e63cb%2112000035788707400%21sea%21US%210%21AB&curPageLogUid=60rGypPtLQcJ&utparam-url=scene%3Asearch%7Cquery_from%3A
+3. ESP32 Wroom 32 Development Board ($3) - https://www.aliexpress.us/item/3256806034074322.html?spm=a2g0o.productlist.main.3.7e07faf9NOwugQ&algo_pvid=7095655f-7c51-45af-bfd9-53728ed615f4&algo_exp_id=7095655f-7c51-45af-bfd9-53728ed615f4-1&pdp_npi=4%40dis%21USD%2110.52%210.99%21%21%2175.44%217.09%21%402101e58b17091454129601513e5d07%2112000036337209451%21sea%21US%210%21AB&curPageLogUid=wHW6Ua4rmBmQ&utparam-url=scene%3Asearch%7Cquery_from%3A
+4. Dupont cables ($2) - https://www.aliexpress.us/item/3256805941164824.html?spm=a2g0o.productlist.main.3.40e0e4fceP8JKN&algo_pvid=0921ba51-af56-45c3-827a-596400023cb8&algo_exp_id=0921ba51-af56-45c3-827a-596400023cb8-1&pdp_npi=4%40dis%21USD%213.13%210.99%21%21%2122.45%217.12%21%402103205217091454542188529e4d68%2112000035962714816%21sea%21US%210%21AB&curPageLogUid=82wePhoUlfkk&utparam-url=scene%3Asearch%7Cquery_from%3A
+5. 5V 2A power adapter (higher current the better) ($5) - https://www.aliexpress.us/item/3256802434250774.html?spm=a2g0o.productlist.main.17.61c928160Z0yhE&algo_pvid=d4b5595b-a54e-4474-b64a-14c91990539c&aem_p4p_detail=2024022820511014725752996342080000001570&algo_exp_id=d4b5595b-a54e-4474-b64a-14c91990539c-8&pdp_npi=4%40dis%21USD%216.84%210.99%21%21%216.84%210.99%21%402101fb0c17091822709174611e0ed6%2112000021491724526%21sea%21US%210%21AB&curPageLogUid=KhTauQnzDska&utparam-url=scene%3Asearch%7Cquery_from%3A&search_p4p_id=2024022820511014725752996342080000001570_9
+   
+# Panel Pinout
+
+Pinout information can be found here: https://github.com/mrfaptastic/ESP32-HUB75-MatrixPanel-DMA. Below is the connection between the panel and the ESP32. Use female-to-female dupont cables to connect them together.
+
+Panel => ESP32
+
+R1 => PIN 25
+
+G1 => PIN 26
+
+B1 => PIN 27
+
+R2 => PIN 14
+
+G2 => PIN 12
+
+B2 => PIN 13
+
+A => PIN 23
+
+B => PIN 19
+
+C => PIN 5
+
+D => PIN 17
+
+E => PIN 18
+
+OE => PIN 15
+
+CLK => PIN 16
 
 # Software:
 
