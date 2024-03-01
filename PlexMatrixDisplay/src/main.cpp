@@ -304,9 +304,41 @@ int drawImagefromFile(const char *imageFileUri, int offset)
 // ******************************************* BEGIN GLOBAL VARS AND UTILS ************************************
 #pragma region GLOBAL_VARS_AND_UTILS
 
+#include "time.h"
+
 String scrollingText = "";
 String lowerScrollingText = "";
 String lastAlbumArtURL = ""; // Variable to store the last downloaded album art URL
+
+const char *ntpServer = "pool.ntp.org";
+const long gmtOffset_sec = 3600 * -8;
+const int daylightOffset_sec = 3600;
+
+void printLocalTimeAndDate()
+{
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo))
+  {
+    Serial.println("Failed to obtain time");
+    return;
+  }
+  Serial.println(&timeinfo, "%A, %B %d %Y %I:%M:%S");
+}
+
+String getLocalTime()
+{
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo))
+  {
+    Serial.println("Failed to obtain time");
+    return "";
+  }
+  char buffer[20];                                                // Create a buffer to hold the formatted time
+  strftime(buffer, sizeof(buffer), "%I:%M %P  %b %d", &timeinfo); // Format time into buffer
+  String localTime = String(buffer);                              // Convert buffer to String
+  // Serial.println(localTime);                                      // Print the time
+  return localTime;                                               // Retur
+}
 
 String decodeHtmlEntities(String text)
 {
@@ -337,6 +369,23 @@ void deleteAlbumArt()
   {
     Serial.println("Removing existing image");
     SPIFFS.remove(ALBUM_ART);
+  }
+}
+
+void displayDateAndTime()
+{
+  String localTime = getLocalTime();
+  if (scrollingText != localTime)
+  {
+    scrollingText = localTime;
+    scrollingPrintCenter(scrollingText.c_str(), 5);
+  }
+
+  String musicPaused = "Music Paused";
+  if (lowerScrollingText != musicPaused)
+  {
+    lowerScrollingText = musicPaused;
+    scrollingPrintCenter(lowerScrollingText.c_str(), 62);
   }
 }
 
@@ -527,7 +576,7 @@ void fetchPlexConfigFile()
       serializeJsonPretty(json, Serial);
       if (!error)
       {
-        Serial.println("\nparsed json");
+        // Serial.println("\nparsed json");
 
         if (json.containsKey(WM_PLEX_SERVER_IP_LABEL) && json.containsKey(WM_PLEX_SERVER_PORT_LABEL) && json.containsKey(WM_PLEX_SERVER_TOKEN_LABEL))
         {
@@ -746,7 +795,7 @@ void getPlexCurrentTrack()
       }
       else
       {
-        displayNoTrackPlaying();
+        displayDateAndTime();
       }
     }
     else
@@ -788,7 +837,7 @@ char refreshedAccessToken[256]; // Adjust the size as needed
 
 void getRefreshToken()
 {
-  Serial.println("***********Fetching Refresh Token");
+  Serial.println("***********Fetching Refresh Token*********");
   printCenter("REFRESHING", 25);
   printCenter("ACCESS TOKEN", 35);
 
@@ -1006,7 +1055,7 @@ void processSpotifyJson(const char *response)
       else if (strncmp(isPlayingStart, "false", 5) == 0)
       {
         // music player is paused.
-        displayNoTrackPlaying();
+        displayDateAndTime();
         return;
       }
     }
@@ -1772,9 +1821,9 @@ void processRequest(WiFiClient client, String method, String path, String key, S
       String refreshToken = clientSecretAndRefreshToken.substring(thirdDelimiterIndex + 1);
 
       // Print the extracted values (for debugging)
-      Serial.println("Spotify Client Id: " + clientId);
-      Serial.println("Spotify Client secret: " + clientSecret);
-      Serial.println("Spotify Refresh Token: " + refreshToken);
+      // Serial.println("Spotify Client Id: " + clientId);
+      // Serial.println("Spotify Client secret: " + clientSecret);
+      // Serial.println("Spotify Refresh Token: " + refreshToken);
 
       // Check if parameters are empty and provide default values if necessary
       clientId = (clientId.length() == 0) ? spotifyClientId : clientId;
@@ -2017,6 +2066,9 @@ void setup()
     // Setup audio visualizer
     setupI2S();
   }
+
+  // init and get the time
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 
   server.begin();
 }
