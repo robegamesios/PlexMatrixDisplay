@@ -301,7 +301,70 @@ int drawImagefromFile(const char *imageFileUri, int offset)
 #pragma endregion
 // ******************************************* END MATRIX DISPLAY *********************************************
 
-// ******************************************* BEGIN GLOBAL VARS AND UTILS ************************************
+// ******************************************* BEGIN UTILS ****************************************************
+#pragma region UTILS
+
+const char *extractStringValue(const char *jsonString, const char *fieldName, const char *defaultValue = nullptr)
+{
+  // Find the start index of the field
+  const char *fieldStart = strstr(jsonString, fieldName);
+  if (fieldStart == nullptr)
+  {
+    printf("Error: Unable to find field '%s'.\n", fieldName);
+    return defaultValue;
+  }
+
+  // Move to the actual value
+  fieldStart += strlen(fieldName);
+
+  // Find the end index of the field value
+  const char *fieldValueEnd = strchr(fieldStart, '"');
+  if (fieldValueEnd == nullptr)
+  {
+    printf("Error: Invalid JSON format for field '%s'.\n", fieldName);
+    return defaultValue;
+  }
+
+  // Calculate the length of the field value
+  int fieldValueLength = fieldValueEnd - fieldStart;
+
+  // Allocate memory for the field value string and copy the value
+  static char fieldValue[128]; // Assuming the field value won't exceed 128 characters
+  strncpy(fieldValue, fieldStart, fieldValueLength);
+  fieldValue[fieldValueLength] = '\0';
+
+  return fieldValue;
+}
+
+float extractFloatValue(const char *jsonString, const char *fieldName, float defaultValue = 0.0f)
+{
+  // Find the start index of the field
+  const char *fieldStart = strstr(jsonString, fieldName);
+  if (fieldStart == nullptr)
+  {
+    printf("Error: Unable to find field '%s'.\n", fieldName);
+    return defaultValue;
+  }
+
+  // Move to the actual value
+  fieldStart += strlen(fieldName);
+
+  // Find the end index of the field value
+  const char *fieldValueEnd = nullptr;
+  sscanf(fieldStart, "%f", &defaultValue);
+  if (fieldValueEnd == nullptr)
+  {
+    printf("Error: Invalid JSON format for field '%s'.\n", fieldName);
+    return defaultValue;
+  }
+
+  return defaultValue;
+}
+
+#pragma endregion
+// ******************************************* END UTILS ******************************************************
+
+// ******************************************* BEGIN GLOBAL VARS AND COMMON FUNC ******************************
 #pragma region GLOBAL_VARS_AND_UTILS
 
 #include "time.h"
@@ -337,7 +400,7 @@ String getLocalTime()
   strftime(buffer, sizeof(buffer), "%I:%M %P  %b %d", &timeinfo); // Format time into buffer
   String localTime = String(buffer);                              // Convert buffer to String
   // Serial.println(localTime);                                      // Print the time
-  return localTime;                                               // Retur
+  return localTime; // Retur
 }
 
 String decodeHtmlEntities(String text)
@@ -465,7 +528,7 @@ String urlEncode(const char *msg)
 }
 
 #pragma endregion
-// ******************************************* END GLOBAL VARS AND UTILS **************************************
+// ******************************************* END GLOBAL VARS AND COMMON FUNC ********************************
 
 // ******************************************* BEGIN WIFI *****************************************************
 #pragma region WIFI
@@ -548,6 +611,79 @@ void loadPreferences()
 
 #pragma endregion
 // ******************************************* END PREFERENCES ************************************************
+
+// ******************************************* BEGIN WEATHER **************************************************
+#pragma region WEATHER
+
+void processWeatherJson(const char *response)
+{
+  const char *description = extractStringValue(response, "\"description\":\"", "Unknown");
+  printf("Weather Description: %s\n", description);
+
+  const char *icon = extractStringValue(response, "\"icon\":\"", "??");
+  printf("Weather Icon: %s\n", icon);
+
+  float temp = extractFloatValue(response, "\"temp\":");
+  printf("Temperature: %.2f\n", temp);
+
+  float temp_min = extractFloatValue(response, "\"temp_min\":");
+  printf("Temperature min: %.2f\n", temp_min);
+
+  float temp_max = extractFloatValue(response, "\"temp_max\":");
+  printf("Temperature max: %.2f\n", temp_max);
+  float pressure = extractFloatValue(response, "\"pressure\":");
+  printf("Pressure: %.2f\n", pressure);
+  float humidity = extractFloatValue(response, "\"humidity\":");
+  printf("Humidity: %.2f\n", humidity);
+  float wind_speed = extractFloatValue(response, "\"speed\":");
+  printf("Wind speed: %.2f\n", wind_speed);
+
+  float timezone = extractFloatValue(response, "\"timezone\":");
+  printf("timezone: %.2f\n", timezone);
+}
+
+void getWeatherInfo()
+{
+  HTTPClient http;
+
+  String city = "vallejo";
+  String countryCode = "US";
+  String openWeatherMapApiKey = "8aed3973a5ffe0a98a04c3a7508b5738";
+
+  String endpoint = "http://api.openweathermap.org/data/2.5/weather?q=" + city + "," + countryCode + "&APPID=" + openWeatherMapApiKey + "&units=imperial";
+
+  // Your IP address with path or Domain name with URL path
+  http.begin(endpoint);
+
+  // Send HTTP POST request
+  int httpCode = http.GET();
+
+  if (httpCode > 0)
+  {
+    Serial.print("HTTP Response code: ");
+    // Serial.println(httpCode);
+    String httpResponse = http.getString();
+    Serial.println(httpResponse);
+
+    // String escapedHttpResponse = escapeSpecialCharacters(httpResponse);
+    // Serial.println("********Escaped http response");
+    // Serial.println(escapedHttpResponse);
+
+    // Convert to const char*
+    const char *jsonCString = httpResponse.c_str();
+    processWeatherJson(jsonCString);
+  }
+  else
+  {
+    Serial.print("Error code: ");
+    Serial.println(httpCode);
+  }
+  // Free resources
+  http.end();
+}
+
+#pragma endregion
+// ******************************************* END WEATHER ****************************************************
 
 // ******************************************* BEGIN PLEX ALBUM ART *******************************************
 #pragma region PLEX_ALBUM_ART
@@ -1065,6 +1201,7 @@ void processSpotifyJson(const char *response)
   {
     Serial.println("*******Null name key, nothing to process");
     displayNoTrackPlaying();
+    getWeatherInfo();
     return;
   }
 
@@ -1165,6 +1302,7 @@ void processSpotifyJson(const char *response)
 
 void getSpotifyCurrentTrack()
 {
+  getWeatherInfo();
   // Your API endpoint
   String endpoint = "https://api.spotify.com/v1/me/player/currently-playing";
 
@@ -1186,6 +1324,7 @@ void getSpotifyCurrentTrack()
   else if (httpCode == 204)
   {
     displayNoTrackPlaying();
+    getWeatherInfo();
   }
   else if (httpCode == 200)
   {
