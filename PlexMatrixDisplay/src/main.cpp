@@ -304,10 +304,49 @@ int drawImagefromFile(const char *imageFileUri, int offset)
 // ******************************************* BEGIN UTILS ****************************************************
 #pragma region UTILS
 
-const char *extractStringValue(const char *jsonString, const char *fieldName, const char *defaultValue = nullptr)
+#include <cstring>
+
+const char *strrstr(const char *haystack, const char *needle)
 {
+  if (!*needle)
+    return haystack;
+  const char *result = nullptr;
+  const char *p;
+  const char *q;
+  for (; *haystack; ++haystack)
+  {
+    if (*haystack == needle[0])
+    {
+      p = haystack;
+      q = needle;
+      while (*p && *q && *p == *q)
+      {
+        ++p;
+        ++q;
+      }
+      if (!*q)
+      {
+        result = haystack;
+      }
+    }
+  }
+  return result;
+}
+
+const char *extractStringValue(const char *jsonString, const char *fieldName, bool findLast = false, const char *defaultValue = nullptr)
+{
+  const char *fieldStart = nullptr;
+
   // Find the start index of the field
-  const char *fieldStart = strstr(jsonString, fieldName);
+  if (findLast)
+  {
+    fieldStart = strrstr(jsonString, fieldName);
+  }
+  else
+  {
+    fieldStart = strstr(jsonString, fieldName);
+  }
+
   if (fieldStart == nullptr)
   {
     printf("Error: Unable to find field '%s'.\n", fieldName);
@@ -315,7 +354,7 @@ const char *extractStringValue(const char *jsonString, const char *fieldName, co
   }
 
   // Move to the actual value
-  fieldStart += strlen(fieldName);
+  fieldStart += strlen(fieldName) + 2; // Account for the field name and 1 colon and 1 quote: "\"fieldName\":"
 
   // Find the end index of the field value
   const char *fieldValueEnd = strchr(fieldStart, '"');
@@ -347,18 +386,46 @@ float extractFloatValue(const char *jsonString, const char *fieldName, float def
   }
 
   // Move to the actual value
-  fieldStart += strlen(fieldName);
+  fieldStart += strlen(fieldName) + 1; // Account for the field name and colon: "\"fieldName\":"
 
   // Find the end index of the field value
-  const char *fieldValueEnd = nullptr;
-  sscanf(fieldStart, "%f", &defaultValue);
-  if (fieldValueEnd == nullptr)
+  float extractedValue;
+  if (sscanf(fieldStart, "%f", &extractedValue) != 1)
   {
-    printf("Error: Invalid JSON format for field '%s'.\n", fieldName);
+    printf("Error: Unable to extract float value for field '%s'.\n", fieldName);
     return defaultValue;
   }
 
-  return defaultValue;
+  return extractedValue;
+}
+
+bool extractBooleanValue(const char *jsonString, const char *fieldName, bool defaultValue = false)
+{
+  // Find the start index of the field
+  const char *fieldStart = strstr(jsonString, fieldName);
+  if (fieldStart == nullptr)
+  {
+    printf("Error: Unable to find field '%s'.\n", fieldName);
+    return defaultValue;
+  }
+
+  // Move to the actual value
+  fieldStart += strlen(fieldName) + 1; // Account for the field name and colon: "\"fieldName\":"
+
+  // Find the end index of the field value
+  if (strncmp(fieldStart, "true", 4) == 0)
+  {
+    return true;
+  }
+  else if (strncmp(fieldStart, "false", 5) == 0)
+  {
+    return false;
+  }
+  else
+  {
+    printf("Error: Invalid boolean value for field '%s'.\n", fieldName);
+    return defaultValue;
+  }
 }
 
 #pragma endregion
@@ -373,10 +440,6 @@ String scrollingText = "";
 String lowerScrollingText = "";
 String lastAlbumArtURL = ""; // Variable to store the last downloaded album art URL
 
-const char *ntpServer = "pool.ntp.org";
-const long gmtOffset_sec = 3600 * -8;
-const int daylightOffset_sec = 3600;
-
 void printLocalTimeAndDate()
 {
   struct tm timeinfo;
@@ -386,21 +449,6 @@ void printLocalTimeAndDate()
     return;
   }
   Serial.println(&timeinfo, "%A, %B %d %Y %I:%M:%S");
-}
-
-String getLocalTime()
-{
-  struct tm timeinfo;
-  if (!getLocalTime(&timeinfo))
-  {
-    Serial.println("Failed to obtain time");
-    return "";
-  }
-  char buffer[20];                                                // Create a buffer to hold the formatted time
-  strftime(buffer, sizeof(buffer), "%I:%M %P  %b %d", &timeinfo); // Format time into buffer
-  String localTime = String(buffer);                              // Convert buffer to String
-  // Serial.println(localTime);                                      // Print the time
-  return localTime; // Retur
 }
 
 String decodeHtmlEntities(String text)
@@ -432,23 +480,6 @@ void deleteAlbumArt()
   {
     Serial.println("Removing existing image");
     SPIFFS.remove(ALBUM_ART);
-  }
-}
-
-void displayDateAndTime()
-{
-  String localTime = getLocalTime();
-  if (scrollingText != localTime)
-  {
-    scrollingText = localTime;
-    scrollingPrintCenter(scrollingText.c_str(), 5);
-  }
-
-  String musicPaused = "Music Paused";
-  if (lowerScrollingText != musicPaused)
-  {
-    lowerScrollingText = musicPaused;
-    scrollingPrintCenter(lowerScrollingText.c_str(), 62);
   }
 }
 
@@ -615,31 +646,34 @@ void loadPreferences()
 // ******************************************* BEGIN WEATHER **************************************************
 #pragma region WEATHER
 
+const int daylightOffset_sec = 3600;
+
 void processWeatherJson(const char *response)
 {
-  const char *description = extractStringValue(response, "\"description\":\"", "Unknown");
+  const char *description = extractStringValue(response, "\"description\"", "Unknown");
   printf("Weather Description: %s\n", description);
 
-  const char *icon = extractStringValue(response, "\"icon\":\"", "??");
+  const char *icon = extractStringValue(response, "\"icon\"", "??");
   printf("Weather Icon: %s\n", icon);
 
-  float temp = extractFloatValue(response, "\"temp\":");
+  float temp = extractFloatValue(response, "\"temp\"");
   printf("Temperature: %.2f\n", temp);
 
-  float temp_min = extractFloatValue(response, "\"temp_min\":");
+  float temp_min = extractFloatValue(response, "\"temp_min\"");
   printf("Temperature min: %.2f\n", temp_min);
 
-  float temp_max = extractFloatValue(response, "\"temp_max\":");
+  float temp_max = extractFloatValue(response, "\"temp_max\"");
   printf("Temperature max: %.2f\n", temp_max);
-  float pressure = extractFloatValue(response, "\"pressure\":");
+  float pressure = extractFloatValue(response, "\"pressure\"");
   printf("Pressure: %.2f\n", pressure);
-  float humidity = extractFloatValue(response, "\"humidity\":");
+  float humidity = extractFloatValue(response, "\"humidity\"");
   printf("Humidity: %.2f\n", humidity);
-  float wind_speed = extractFloatValue(response, "\"speed\":");
+  float wind_speed = extractFloatValue(response, "\"speed\"");
   printf("Wind speed: %.2f\n", wind_speed);
 
-  float timezone = extractFloatValue(response, "\"timezone\":");
+  float timezone = extractFloatValue(response, "\"timezone\"");
   printf("timezone: %.2f\n", timezone);
+  configTime((long)timezone, daylightOffset_sec, "pool.ntp.org");
 }
 
 void getWeatherInfo()
@@ -648,7 +682,7 @@ void getWeatherInfo()
 
   String city = "vallejo";
   String countryCode = "US";
-  String openWeatherMapApiKey = "8aed3973a5ffe0a98a04c3a7508b5738";
+  String openWeatherMapApiKey = "";
 
   String endpoint = "http://api.openweathermap.org/data/2.5/weather?q=" + city + "," + countryCode + "&APPID=" + openWeatherMapApiKey + "&units=imperial";
 
@@ -684,6 +718,44 @@ void getWeatherInfo()
 
 #pragma endregion
 // ******************************************* END WEATHER ****************************************************
+
+// ******************************************* BEGIN CLOCK ****************************************************
+#pragma region CLOCK
+
+String getLocalTime()
+{
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo))
+  {
+    Serial.println("Failed to obtain time");
+    return "";
+  }
+  char buffer[20];                                                // Create a buffer to hold the formatted time
+  strftime(buffer, sizeof(buffer), "%I:%M %P  %b %d", &timeinfo); // Format time into buffer
+  String localTime = String(buffer);                              // Convert buffer to String
+  // Serial.println(localTime);                                      // Print the time
+  return localTime; // Retur
+}
+
+void displayDateAndTime()
+{
+  String localTime = getLocalTime();
+  if (scrollingText != localTime)
+  {
+    scrollingText = localTime;
+    scrollingPrintCenter(scrollingText.c_str(), 5);
+  }
+
+  String musicPaused = "Music Paused";
+  if (lowerScrollingText != musicPaused)
+  {
+    lowerScrollingText = musicPaused;
+    scrollingPrintCenter(lowerScrollingText.c_str(), 62);
+  }
+}
+
+#pragma endregion
+// ******************************************* END CLOCK ******************************************************
 
 // ******************************************* BEGIN PLEX ALBUM ART *******************************************
 #pragma region PLEX_ALBUM_ART
@@ -1163,146 +1235,29 @@ void downloadSpotifyAlbumArt(String imageUrl)
 
 void processSpotifyJson(const char *response)
 {
-  char songName[64]; // Assuming the song name won't exceed 64 characters
-  songName[0] = '\0';
-  char artistName[64]; // Assuming the artist name won't exceed 64 characters
-  artistName[0] = '\0';
-  spotifyImageUrl[0] = '\0';
-
-  // Find the start index of the last occurrence of the "name" key
-  const char *nameKeyStart = strstr(response, "\"name\":");
-
-  const char *isPlayingStart = strstr(response, "\"is_playing\"");
-  if (isPlayingStart != nullptr)
+  bool isPlaying = extractBooleanValue(response, "\"is_playing\"");
+  // printf("isPlaying: %s\n", isPlaying ? "true" : "false");
+  if (!isPlaying)
   {
-    // Move to the value part after ":"
-    isPlayingStart = strchr(isPlayingStart, ':');
-
-    if (isPlayingStart != nullptr)
-    {
-      // Move to the actual value
-      isPlayingStart++;
-
-      // Check if it's 'true' or 'false'
-      if (strncmp(isPlayingStart, "true", 4) == 0)
-      {
-        // No-op continue
-      }
-      else if (strncmp(isPlayingStart, "false", 5) == 0)
-      {
-        // music player is paused.
-        displayDateAndTime();
-        return;
-      }
-    }
-  }
-
-  if (nameKeyStart == nullptr)
-  {
-    Serial.println("*******Null name key, nothing to process");
-    displayNoTrackPlaying();
-    getWeatherInfo();
+    displayDateAndTime();
     return;
   }
 
-  const char *lastNameKeyStart = NULL;
-  while (nameKeyStart != NULL)
-  {
-    lastNameKeyStart = nameKeyStart;
-    nameKeyStart = strstr(nameKeyStart + 1, "\"name\":");
-  }
+  const char *songName = extractStringValue(response, "\"name\"", true, "Unknown");
+  // printf("songName: %s\n", songName);
+  scrollingText = String(songName);
 
-  // If the last "name" key is found, get its associated value
-  if (lastNameKeyStart != NULL)
-  {
-    const char *songNameStart = lastNameKeyStart + 8;       // Move to the start of the value
-    const char *songNameEnd = strstr(songNameStart, "\","); // Find the end of the value
-    if (songNameEnd != NULL && songNameStart < songNameEnd)
-    {
-      strncpy(songName, songNameStart, songNameEnd - songNameStart);
-      songName[songNameEnd - songNameStart] = '\0'; // Null-terminate the string
-      // Serial.println("Song Name: " + String(songName));
-      scrollingText = String(songName);
-    }
-    else
-    {
-      Serial.println("Song name not found!");
-    }
-  }
-  else
-  {
-    Serial.println("No 'name' key found in the JSON response!");
-  }
+  const char *artist = extractStringValue(response, "\"name\"", false, "Unknown");
+  // printf("artist: %s\n", artist);
+  lowerScrollingText = String(artist);
 
-  // Find the start and end indices of the "name" field for the artist
-  const char *artistNameStart = strstr(response, "\"artists\"");
-  artistNameStart = strstr(artistNameStart, "\"name\":\"") + 8;
-  const char *artistNameEnd = strstr(artistNameStart, "\",");
-  if (artistNameStart != NULL && artistNameEnd != NULL && artistNameStart < artistNameEnd)
-  {
-    strncpy(artistName, artistNameStart, artistNameEnd - artistNameStart);
-    artistName[artistNameEnd - artistNameStart] = '\0'; // Null-terminate the string
-    // Serial.println("Artist Name: " + String(artistName));
-    lowerScrollingText = String(artistName);
-  }
-  else
-  {
-    Serial.println("Artist name not found!");
-  }
-
-  // Extract the URL of the 64x64 image
-  // Find the start index of the "images" key
-  const char *imagesKeyStart = strstr(response, "\"images\"");
-  if (imagesKeyStart != NULL)
-  {
-    // Find the start index of the array of images
-    const char *imagesArrayStart = strstr(imagesKeyStart, "[");
-    if (imagesArrayStart != NULL)
-    {
-      // Find the start index of the last image URL
-      const char *lastImageUrlStart = NULL;
-      const char *nextImageUrl = strstr(imagesArrayStart, "\"url\"");
-      while (nextImageUrl != NULL)
-      {
-        lastImageUrlStart = nextImageUrl;
-        nextImageUrl = strstr(lastImageUrlStart + 1, "\"url\"");
-      }
-
-      if (lastImageUrlStart != NULL)
-      {
-        // Find the start and end indices of the last image URL
-        const char *lastImageUrlValueStart = strstr(lastImageUrlStart, "https://");
-        const char *lastImageUrlEnd = strstr(lastImageUrlValueStart, "\",");
-        if (lastImageUrlValueStart != NULL && lastImageUrlEnd != NULL)
-        {
-          strncpy(spotifyImageUrl, lastImageUrlValueStart, lastImageUrlEnd - lastImageUrlValueStart);
-          spotifyImageUrl[lastImageUrlEnd - lastImageUrlValueStart] = '\0'; // Null-terminate the string
-          // Serial.println("Image URL: " + String(imageUrl));
-        }
-        else
-        {
-          Serial.println("Invalid format for the last image URL!");
-        }
-      }
-      else
-      {
-        Serial.println("No image URLs found in the 'images' array!");
-      }
-    }
-    else
-    {
-      Serial.println("No array found for 'images' key!");
-    }
-  }
-  else
-  {
-    Serial.println("No 'images' key found in the JSON response!");
-  }
+  const char *imageUrl = extractStringValue(response, "\"url\"", "Unknown");
+  // printf("imageUrl: %s\n", imageUrl);
+  strcpy(spotifyImageUrl, imageUrl);
 }
 
 void getSpotifyCurrentTrack()
 {
-  getWeatherInfo();
   // Your API endpoint
   String endpoint = "https://api.spotify.com/v1/me/player/currently-playing";
 
@@ -1324,7 +1279,6 @@ void getSpotifyCurrentTrack()
   else if (httpCode == 204)
   {
     displayNoTrackPlaying();
-    getWeatherInfo();
   }
   else if (httpCode == 200)
   {
@@ -1334,6 +1288,7 @@ void getSpotifyCurrentTrack()
 
     // Escape double quotes
     String escapedHttpResponse = escapeSpecialCharacters(httpResponse);
+    // Serial.println("escapedResponse: " + escapedHttpResponse);
     // Convert to const char*
     const char *jsonCString = escapedHttpResponse.c_str();
 
@@ -2206,8 +2161,8 @@ void setup()
     setupI2S();
   }
 
-  // init and get the time
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  // get the weather
+  getWeatherInfo();
 
   server.begin();
 }
