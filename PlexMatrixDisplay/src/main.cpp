@@ -615,6 +615,31 @@ boolean isConnected()
 #pragma endregion
 // ******************************************* END WIFI *******************************************************
 
+// ******************************************* BEGIN NETWORKING ***********************************************
+#pragma region NETWORKING
+
+void httpGet(const String &url, const String &authorizationHeaderKey, const String &authorizationHeaderValue, std::function<void(int, const String &)> callback)
+{
+  HTTPClient http;
+  http.begin(url);
+  http.addHeader(authorizationHeaderKey, authorizationHeaderValue);
+
+  int httpCode = http.GET();
+  String response;
+
+  if (httpCode == HTTP_CODE_OK)
+  {
+    response = http.getString();
+  }
+
+  callback(httpCode, response);
+
+  http.end();
+}
+
+#pragma endregion
+// ******************************************* END NETWORKING *************************************************
+
 // ******************************************* BEGIN PREFERENCES **********************************************
 #pragma region PREFERENCES
 
@@ -678,42 +703,23 @@ void processWeatherJson(const char *response)
 
 void getWeatherInfo()
 {
-  HTTPClient http;
-
   String city = "vallejo";
   String countryCode = "US";
   String openWeatherMapApiKey = "";
 
   String endpoint = "http://api.openweathermap.org/data/2.5/weather?q=" + city + "," + countryCode + "&APPID=" + openWeatherMapApiKey + "&units=imperial";
 
-  // Your IP address with path or Domain name with URL path
-  http.begin(endpoint);
-
-  // Send HTTP POST request
-  int httpCode = http.GET();
-
-  if (httpCode > 0)
-  {
-    Serial.print("HTTP Response code: ");
-    // Serial.println(httpCode);
-    String httpResponse = http.getString();
-    Serial.println(httpResponse);
-
-    // String escapedHttpResponse = escapeSpecialCharacters(httpResponse);
-    // Serial.println("********Escaped http response");
-    // Serial.println(escapedHttpResponse);
-
-    // Convert to const char*
-    const char *jsonCString = httpResponse.c_str();
-    processWeatherJson(jsonCString);
-  }
-  else
-  {
-    Serial.print("Error code: ");
-    Serial.println(httpCode);
-  }
-  // Free resources
-  http.end();
+  httpGet(endpoint, "", "", [](int httpCode, const String &response)
+          {
+    if (httpCode == HTTP_CODE_OK) {
+      String httpResponse = response;
+      Serial.println(httpResponse);
+      const char *jsonCString = httpResponse.c_str();
+      processWeatherJson(jsonCString);
+    } else {
+      Serial.print("Error code: ");
+      Serial.println(httpCode);
+    } });
 }
 
 #pragma endregion
@@ -894,133 +900,114 @@ void downloadPlexAlbumArt(const char *relativeUrl, const char *trackTitle, const
   }
 }
 
-void getPlexCurrentTrack()
+void processPlexResponse(const String &payload)
 {
-  HTTPClient http;
-  // Construct the Plex API URL to get the currently playing item
-  String apiUrl = "http://" + String(plexServerIp) + ":" + String(plexServerPort) + "/status/sessions";
+  // Parse the XML response to get the last track title, artist name, and thumbnail URL
 
-  if (http.begin(apiUrl))
+  int playerStateIndex = payload.indexOf("state=\"");
+
+  String playerState = "";
+  if (playerStateIndex != -1)
   {
-    // Set the authentication token in the request headers
-    http.addHeader("X-Plex-Token", plexServerToken);
-    int httpCode = http.GET();
-    // Serial.print("PlexAmp HTTP code: ");
-    // Serial.println(httpCode);
+    int stateStartIndex = playerStateIndex + 7; // Length of "state=\""
+    int stateEndIndex = payload.indexOf("\"", stateStartIndex);
+    playerState = payload.substring(stateStartIndex, stateEndIndex);
+  }
 
-    if (httpCode == 200)
+  int lastTrackIndex = payload.lastIndexOf("<Track ");
+  if (lastTrackIndex != -1 && playerState == "playing")
+  {
+    // Extract the last track XML block
+    int trackEndIndex = payload.indexOf("</Track>", lastTrackIndex);
+    String trackXML = payload.substring(lastTrackIndex, trackEndIndex);
+    // Extract the track title
+    int titleIndex = trackXML.indexOf("title=\"");
+    if (titleIndex != -1)
     {
-      String payload = http.getString();
-      // Serial.println("*****************BEGIN PAYLOAD********************");
-      // Serial.println(payload);
-      // Serial.println("*****************END PAYLOAD********************");
-      // Parse the XML response to get the last track title, artist name, and thumbnail URL
-
-      int playerStateIndex = payload.indexOf("state=\"");
-
-      String playerState = "";
-      if (playerStateIndex != -1)
+      int titleStartIndex = titleIndex + 7; // Length of "title=\""
+      int titleEndIndex = trackXML.indexOf("\"", titleStartIndex);
+      String trackTitle = trackXML.substring(titleStartIndex, titleEndIndex);
+      // Extract the artist name
+      int artistIndex = trackXML.indexOf("grandparentTitle=\"");
+      if (artistIndex != -1)
       {
-        int stateStartIndex = playerStateIndex + 7; // Length of "state=\""
-        int stateEndIndex = payload.indexOf("\"", stateStartIndex);
-        playerState = payload.substring(stateStartIndex, stateEndIndex);
-      }
-
-      int lastTrackIndex = payload.lastIndexOf("<Track ");
-      if (lastTrackIndex != -1 && playerState == "playing")
-      {
-        // Extract the last track XML block
-        int trackEndIndex = payload.indexOf("</Track>", lastTrackIndex);
-        String trackXML = payload.substring(lastTrackIndex, trackEndIndex);
-        // Extract the track title
-        int titleIndex = trackXML.indexOf("title=\"");
-        if (titleIndex != -1)
+        int artistStartIndex = artistIndex + 18; // Length of "grandparentTitle=\""
+        int artistEndIndex = trackXML.indexOf("\"", artistStartIndex);
+        String artistName = trackXML.substring(artistStartIndex, artistEndIndex);
+        // Extract the thumbnail URL
+        int thumbIndex = trackXML.indexOf("thumb=\"");
+        if (thumbIndex != -1)
         {
-          int titleStartIndex = titleIndex + 7; // Length of "title=\""
-          int titleEndIndex = trackXML.indexOf("\"", titleStartIndex);
-          String trackTitle = trackXML.substring(titleStartIndex, titleEndIndex);
-          // Extract the artist name
-          int artistIndex = trackXML.indexOf("grandparentTitle=\"");
-          if (artistIndex != -1)
+          int thumbStartIndex = thumbIndex + 7; // Length of "thumb=\""
+          int thumbEndIndex = trackXML.indexOf("\"", thumbStartIndex);
+          String coverArtURL = trackXML.substring(thumbStartIndex, thumbEndIndex);
+          // Display or use the last track title, artist name, and thumbnail URL as needed
+          if (!trackTitle.isEmpty() && !artistName.isEmpty() && !coverArtURL.isEmpty())
           {
-            int artistStartIndex = artistIndex + 18; // Length of "grandparentTitle=\""
-            int artistEndIndex = trackXML.indexOf("\"", artistStartIndex);
-            String artistName = trackXML.substring(artistStartIndex, artistEndIndex);
-            // Extract the thumbnail URL
-            int thumbIndex = trackXML.indexOf("thumb=\"");
-            if (thumbIndex != -1)
+            // Serial.println("Last Track Title: " + trackTitle);
+            // Serial.println("Artist Name: " + artistName);
+            // Serial.println("Last Thumbnail URL: " + coverArtURL);
+
+            String cleanTrackTitle = decodeHtmlEntities(trackTitle);
+            char trackTitleCharArray[cleanTrackTitle.length() + 1];
+            cleanTrackTitle.toCharArray(trackTitleCharArray, cleanTrackTitle.length() + 1);
+
+            String cleanArtistName = decodeHtmlEntities(artistName);
+            char artistNameCharArray[cleanArtistName.length() + 1];
+            cleanArtistName.toCharArray(artistNameCharArray, artistName.length() + 1);
+
+            // Check if the current album art URL is different from the last one
+            if (coverArtURL != lastAlbumArtURL)
             {
-              int thumbStartIndex = thumbIndex + 7; // Length of "thumb=\""
-              int thumbEndIndex = trackXML.indexOf("\"", thumbStartIndex);
-              String coverArtURL = trackXML.substring(thumbStartIndex, thumbEndIndex);
-              // Display or use the last track title, artist name, and thumbnail URL as needed
-              if (!trackTitle.isEmpty() && !artistName.isEmpty() && !coverArtURL.isEmpty())
-              {
-                // Serial.println("Last Track Title: " + trackTitle);
-                // Serial.println("Artist Name: " + artistName);
-                // Serial.println("Last Thumbnail URL: " + coverArtURL);
+              // Delete old cover art
+              deleteAlbumArt();
 
-                String cleanTrackTitle = decodeHtmlEntities(trackTitle);
-                char trackTitleCharArray[cleanTrackTitle.length() + 1];
-                cleanTrackTitle.toCharArray(trackTitleCharArray, cleanTrackTitle.length() + 1);
+              // Allocate a character array with extra space for null-terminator
+              char coverArtCharArray[coverArtURL.length() + 1];
 
-                String cleanArtistName = decodeHtmlEntities(artistName);
-                char artistNameCharArray[cleanArtistName.length() + 1];
-                cleanArtistName.toCharArray(artistNameCharArray, artistName.length() + 1);
+              // Copy the content of the String to the char array
+              coverArtURL.toCharArray(coverArtCharArray, coverArtURL.length() + 1);
 
-                // Check if the current album art URL is different from the last one
-                if (coverArtURL != lastAlbumArtURL)
-                {
-                  // Delete old cover art
-                  deleteAlbumArt();
-
-                  // Allocate a character array with extra space for null-terminator
-                  char coverArtCharArray[coverArtURL.length() + 1];
-
-                  // Copy the content of the String to the char array
-                  coverArtURL.toCharArray(coverArtCharArray, coverArtURL.length() + 1);
-
-                  // Download and save the thumbnail image
-                  downloadPlexAlbumArt(coverArtCharArray, trackTitleCharArray, artistNameCharArray);
-                  lastAlbumArtURL = coverArtURL; // Update the last downloaded album art URL
-                }
-                else
-                {
-                  // Serial.println("Album art hasn't changed. Skipping download.");
-
-                  // Trigger scrolling song title
-                  scrollingText = trackTitleCharArray;
-                  lowerScrollingText = artistNameCharArray;
-                }
-              }
-              else
-              {
-                Serial.println("Incomplete information for the last played song.");
-              }
+              // Download and save the thumbnail image
+              downloadPlexAlbumArt(coverArtCharArray, trackTitleCharArray, artistNameCharArray);
+              lastAlbumArtURL = coverArtURL; // Update the last downloaded album art URL
             }
+            else
+            {
+              // Serial.println("Album art hasn't changed. Skipping download.");
+
+              // Trigger scrolling song title
+              scrollingText = trackTitleCharArray;
+              lowerScrollingText = artistNameCharArray;
+            }
+          }
+          else
+          {
+            Serial.println("Incomplete information for the last played song.");
           }
         }
       }
-      else
-      {
-        displayDateAndTime();
-      }
     }
-    else
-    {
-      displayHttpRequestFailed();
-    }
-    http.end();
   }
   else
   {
-    Serial.println("Unable to connect to Plex server");
-    resetAlbumArtVariables();
-    clearImage();
-    printCenter("UNABLE TO", 20);
-    printCenter("CONNECT TO", 30);
-    printCenter("PLEX SERVER", 40);
+    displayDateAndTime();
   }
+}
+
+void getPlexCurrentTrack()
+{
+  String apiUrl = "http://" + String(plexServerIp) + ":" + String(plexServerPort) + "/status/sessions";
+  String headerKey = "X-Plex-Token";
+  String headerValue = String(plexServerToken);
+
+  httpGet(apiUrl, headerKey, headerValue, [](int httpCode, const String &response)
+          {
+    if (httpCode == 200) {
+      processPlexResponse(response);
+    } else {
+      displayHttpRequestFailed();
+    } });
 }
 
 #pragma endregion
@@ -1191,46 +1178,31 @@ void downloadSpotifyAlbumArt(String imageUrl)
   }
   deleteAlbumArt();
 
-  HTTPClient http;
-
   // Send GET request to the image URL
-  if (http.begin(imageUrl))
-  {
-    int httpCode = http.GET();
-    if (httpCode == HTTP_CODE_OK)
-    {
+  httpGet(imageUrl, "", "", [&](int httpCode, const String &response)
+          {
+    if (httpCode == HTTP_CODE_OK) {
       // Successfully downloaded the image, now save it to SPIFFS
       File file = SPIFFS.open(ALBUM_ART, FILE_WRITE);
-      if (!file)
-      {
+      if (!file) {
         Serial.println("Failed to create file");
         return;
       }
-      http.writeToStream(&file);
+      file.print(response);
       file.close();
       // Check if the file exists
-      if (SPIFFS.exists(ALBUM_ART))
-      {
+      if (SPIFFS.exists(ALBUM_ART)) {
         Serial.println("Image downloaded and saved successfully");
-        lastAlbumArtURL = imageUrl; // Update the last downloaded album art URL
+        // Update the last downloaded album art URL using the captured parameter
+        lastAlbumArtURL = imageUrl;
         drawImagefromFile(ALBUM_ART, 0);
-      }
-      else
-      {
+      } else {
         Serial.println("Failed to save image to SPIFFS");
       }
-    }
-    else
-    {
+    } else {
       Serial.print("Failed to download image. HTTP error code: ");
       Serial.println(httpCode);
-    }
-    http.end();
-  }
-  else
-  {
-    Serial.println("Failed to connect to image URL");
-  }
+    } });
 }
 
 void processSpotifyJson(const char *response)
@@ -1262,44 +1234,27 @@ void getSpotifyCurrentTrack()
   String endpoint = "https://api.spotify.com/v1/me/player/currently-playing";
 
   // Authorization header
-  String authorizationHeader = "Bearer " + String(refreshedAccessToken);
+  String headerKey = "Authorization";
+  String headerValue = "Bearer " + String(refreshedAccessToken);
 
-  // Perform HTTP GET request
-  HTTPClient http;
-  http.begin(endpoint);
-  http.addHeader("Authorization", authorizationHeader);
+  httpGet(endpoint, headerKey, headerValue, [](int httpCode, const String &response)
+          {
+    if (httpCode == 401) {
+      Serial.println("***** Access token expired");
+      restartDevice();
+    } else if (httpCode == 204) {
+      displayNoTrackPlaying();
+    } else if (httpCode == 200) {
+      // Escape double quotes
+      String escapedResponse = escapeSpecialCharacters(response);
 
-  int httpCode = http.GET();
+      // Convert to const char*
+      const char *jsonCString = escapedResponse.c_str();
 
-  if (httpCode == 401)
-  {
-    Serial.println("***** Access token expired");
-    restartDevice();
-  }
-  else if (httpCode == 204)
-  {
-    displayNoTrackPlaying();
-  }
-  else if (httpCode == 200)
-  {
-    String httpResponse = http.getString();
-    // Serial.println("HTTP response code: " + String(httpCode));
-    // Serial.println("Response: " + httpResponse);
-
-    // Escape double quotes
-    String escapedHttpResponse = escapeSpecialCharacters(httpResponse);
-    // Serial.println("escapedResponse: " + escapedHttpResponse);
-    // Convert to const char*
-    const char *jsonCString = escapedHttpResponse.c_str();
-
-    processSpotifyJson(jsonCString);
-  }
-  else
-  {
-    displayHttpRequestFailed();
-  }
-
-  http.end();
+      processSpotifyJson(jsonCString);
+    } else {
+      displayHttpRequestFailed();
+    } });
 }
 
 #pragma endregion
