@@ -16,6 +16,7 @@
 #include <ArduinoJson.h>
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
 #include "picopixel.h"
+#include "Fonts/FreeSerifBold9pt7b.h"
 
 #define PANEL_WIDTH 64
 #define PANEL_HEIGHT 64
@@ -27,6 +28,9 @@ uint16_t myWHITE = dma_display->color565(255, 255, 255);
 uint16_t myRED = dma_display->color565(255, 0, 0);
 uint16_t myGREEN = dma_display->color565(0, 255, 0);
 uint16_t myBLUE = dma_display->color565(0, 0, 255);
+uint16_t myORANGE = dma_display->color565(255, 140, 0);
+uint16_t myPURPLE = dma_display->color565(138, 43, 226);
+
 JPEGDEC jpeg;
 
 const char *ALBUM_ART = "/album.jpg";
@@ -100,17 +104,31 @@ void clearImage()
   dma_display->fillScreen(myBLACK);
 }
 
-void printCenter(const char *buf, int y)
+void printCenter(const char *buf, int y, uint16_t textColor = myWHITE, GFXfont font = Picopixel)
 {
   // Clear the screen
   displayRect(0, y - 5, PANEL_WIDTH, 8, 0);
 
   int16_t x1, y1;
   uint16_t w, h;
-  dma_display->setFont(&Picopixel);
+  dma_display->setFont(&font);
   dma_display->getTextBounds(buf, 0, y, &x1, &y1, &w, &h);
   dma_display->setCursor(32 - (w / 2), y);
-  dma_display->setTextColor(0xffff);
+  dma_display->setTextColor(textColor);
+  dma_display->print(buf);
+}
+
+void printLeft(const char *buf, int x, int y, uint16_t textColor = myWHITE, GFXfont font = Picopixel)
+{
+  // Clear the screen
+  displayRect(x - 32, y - 5, PANEL_WIDTH, 8, 0); // Adjust the clear rectangle based on the new x position
+
+  int16_t x1, y1;
+  uint16_t w, h;
+  dma_display->setFont(&font);
+  dma_display->getTextBounds(buf, 0, y, &x1, &y1, &w, &h);
+  dma_display->setCursor(x, y);
+  dma_display->setTextColor(textColor);
   dma_display->print(buf);
 }
 
@@ -124,7 +142,7 @@ enum ScrollState
 char previousScrollingText[100] = "";
 char previousScrollingText2[100] = "";
 
-void scrollingPrintCenter(const char *buf, int y)
+void printScrolling(const char *buf, int y, uint16_t textColor = myWHITE, GFXfont font = Picopixel)
 {
   static int16_t x1, y1;
   static uint16_t w, h;
@@ -140,7 +158,7 @@ void scrollingPrintCenter(const char *buf, int y)
   {
   case SCROLL_IDLE:
     // Set the font and get the width of the text
-    dma_display->setFont(&Picopixel);
+    dma_display->setFont(&font);
     dma_display->getTextBounds(buf, 0, y, &x1, &y1, &w, &h);
     textWidth = w;
 
@@ -161,7 +179,7 @@ void scrollingPrintCenter(const char *buf, int y)
         displayRect(0, clearOriginY, PANEL_WIDTH, clearHeight, 0);
 
         dma_display->setCursor(32 - (w / 2), y);
-        dma_display->setTextColor(0xffff);
+        dma_display->setTextColor(textColor);
         dma_display->print(buf);
         state = SCROLL_IDLE; // Reset state to IDLE if no scrolling is needed
         strcpy(previousScrollingText, buf);
@@ -185,7 +203,7 @@ void scrollingPrintCenter(const char *buf, int y)
 
       // Print the text at the new position
       dma_display->setCursor(displayX, y);
-      dma_display->setTextColor(0xffff);
+      dma_display->setTextColor(textColor);
       dma_display->print(buf);
 
       // Update last scroll time
@@ -205,7 +223,7 @@ void scrollingPrintCenter(const char *buf, int y)
   }
 }
 
-void scrollingPrintCenter2(const char *buf, int y)
+void printScrolling2(const char *buf, int y, uint16_t textColor = myWHITE, GFXfont font = Picopixel)
 {
   static int16_t x1, y1;
   static uint16_t w, h;
@@ -221,7 +239,7 @@ void scrollingPrintCenter2(const char *buf, int y)
   {
   case SCROLL_IDLE:
     // Set the font and get the width of the text
-    dma_display->setFont(&Picopixel);
+    dma_display->setFont(&font);
     dma_display->getTextBounds(buf, 0, y, &x1, &y1, &w, &h);
     textWidth = w;
 
@@ -242,7 +260,7 @@ void scrollingPrintCenter2(const char *buf, int y)
         displayRect(0, clearOriginY, PANEL_WIDTH, clearHeight, 0);
 
         dma_display->setCursor(32 - (w / 2), y);
-        dma_display->setTextColor(0xffff);
+        dma_display->setTextColor(textColor);
         dma_display->print(buf);
         state = SCROLL_IDLE; // Reset state to IDLE if no scrolling is needed
         strcpy(previousScrollingText2, buf);
@@ -266,7 +284,7 @@ void scrollingPrintCenter2(const char *buf, int y)
 
       // Print the text at the new position
       dma_display->setCursor(displayX, y);
-      dma_display->setTextColor(0xffff);
+      dma_display->setTextColor(textColor);
       dma_display->print(buf);
 
       // Update last scroll time
@@ -299,6 +317,48 @@ int drawImagefromFile(const char *imageFileUri, int offset)
   return decodeStatus;
 }
 
+uint16_t color565(uint32_t rgb)
+{
+  return (((rgb >> 16) & 0xF8) << 8) |
+         (((rgb >> 8) & 0xFC) << 3) |
+         ((rgb & 0xFF) >> 3);
+};
+
+void drawBitmap(int startx, int starty, int width, int height, uint32_t *bitmap)
+{
+  int counter = 0;
+  for (int yy = 0; yy < height; yy++)
+  {
+    for (int xx = 0; xx < width; xx++)
+    {
+      dma_display->drawPixel(startx + xx, starty + yy, color565(bitmap[counter]));
+      counter++;
+    }
+  }
+}
+
+// Draw the bitmap, with an option to enlarge it by a factor of two
+void drawBitmap(int startx, int starty, int width, int height, uint32_t *bitmap, bool enlarged)
+{
+  int counter = 0;
+  if (enlarged)
+  {
+    for (int yy = 0; yy < height; yy++)
+    {
+      for (int xx = 0; xx < width; xx++)
+      {
+        dma_display->drawPixel(startx + 2 * xx, starty + 2 * yy, color565(bitmap[counter]));
+        dma_display->drawPixel(startx + 2 * xx + 1, starty + 2 * yy, color565(bitmap[counter]));
+        dma_display->drawPixel(startx + 2 * xx, starty + 2 * yy + 1, color565(bitmap[counter]));
+        dma_display->drawPixel(startx + 2 * xx + 1, starty + 2 * yy + 1, color565(bitmap[counter]));
+        counter++;
+      }
+    }
+  }
+  else
+    drawBitmap(startx, starty, width, height, bitmap);
+}
+
 #pragma endregion
 // ******************************************* END MATRIX DISPLAY *********************************************
 
@@ -306,6 +366,31 @@ int drawImagefromFile(const char *imageFileUri, int offset)
 #pragma region UTILS
 
 #include <cstring>
+
+std::string capitalizeString(const char *str)
+{
+  std::string capitalizedStr;
+  if (str != nullptr && strlen(str) > 0)
+  {
+    capitalizedStr += std::toupper(str[0]);
+    capitalizedStr += &str[1]; // Append the rest of the string
+  }
+  return capitalizedStr;
+}
+
+std::string toUpperCase(const char *str)
+{
+  std::string upperStr;
+  if (str != nullptr)
+  {
+    size_t length = strlen(str);
+    for (size_t i = 0; i < length; ++i)
+    {
+      upperStr += std::toupper(str[i]);
+    }
+  }
+  return upperStr;
+}
 
 const char *strrstr(const char *haystack, const char *needle)
 {
@@ -368,8 +453,16 @@ const char *extractStringValue(const char *jsonString, const char *fieldName, bo
   // Calculate the length of the field value
   int fieldValueLength = fieldValueEnd - fieldStart;
 
-  // Allocate memory for the field value string and copy the value
-  static char fieldValue[128]; // Assuming the field value won't exceed 128 characters
+  // Allocate memory for the field value string
+  char *fieldValue = (char *)malloc(fieldValueLength + 1);
+  if (fieldValue == nullptr)
+  {
+    // Handle memory allocation failure
+    printf("Error: Failed to allocate memory.\n");
+    return defaultValue;
+  }
+
+  // Copy the value
   strncpy(fieldValue, fieldStart, fieldValueLength);
   fieldValue[fieldValueLength] = '\0';
 
@@ -413,7 +506,7 @@ bool extractBooleanValue(const char *jsonString, const char *fieldName, bool def
   // Move to the actual value
   fieldStart += strlen(fieldName) + 1; // Account for the field name and colon: "\"fieldName\":"
 
-  // Find the end index of the field value
+  // Compare the field value with "true" or "false"
   if (strncmp(fieldStart, "true", 4) == 0)
   {
     return true;
@@ -427,6 +520,11 @@ bool extractBooleanValue(const char *jsonString, const char *fieldName, bool def
     printf("Error: Invalid boolean value for field '%s'.\n", fieldName);
     return defaultValue;
   }
+}
+
+void floatToChar(float floatValue, char *charArray, int bufferSize)
+{
+  snprintf(charArray, bufferSize, "%.0f", floatValue);
 }
 
 #pragma endregion
@@ -670,8 +768,48 @@ void loadPreferences()
 #pragma endregion
 // ******************************************* END PREFERENCES ************************************************
 
+// ******************************************* BEGIN CLOCK ****************************************************
+#pragma region CLOCK
+
+String getLocalTime()
+{
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo))
+  {
+    Serial.println("Failed to obtain time");
+    return "";
+  }
+  char buffer[20];                                                // Create a buffer to hold the formatted time
+  strftime(buffer, sizeof(buffer), "%I:%M %P  %b %d", &timeinfo); // Format time into buffer
+  String localTime = String(buffer);                              // Convert buffer to String
+  // Serial.println(localTime);                                      // Print the time
+  return localTime; // Retur
+}
+
+void displayDateAndTime()
+{
+  String localTime = getLocalTime();
+  if (scrollingText != localTime)
+  {
+    scrollingText = localTime;
+    printScrolling(scrollingText.c_str(), 5, myBLUE);
+  }
+
+  String musicPaused = "Music Paused";
+  if (lowerScrollingText != musicPaused)
+  {
+    lowerScrollingText = musicPaused;
+    printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
+  }
+}
+
+#pragma endregion
+// ******************************************* END CLOCK ******************************************************
+
 // ******************************************* BEGIN WEATHER **************************************************
 #pragma region WEATHER
+
+#include "weatherIcons.h"
 
 #define WM_WEATHER_CITY_NAME_LABEL "weatherCityName"
 #define WM_WEATHER_COUNTRY_CODE_LABEL "weatherCountryCode"
@@ -683,6 +821,32 @@ char weatherCountryCode[6];
 char weatherApikey[64];
 
 const int daylightOffset_sec = 3600; // daylight savings time is ON, 0 for OFF
+
+// Draw one of the available weather icons in the specified space
+void drawWeatherIcon(int startx, int starty, int width, int height, uint8_t icon, bool enlarged)
+{
+  switch (icon)
+  {
+  case 0:
+    drawBitmap(startx, starty, width, height, sun_8x8, enlarged);
+    break;
+  case 1:
+    drawBitmap(startx, starty, width, height, cloud_8x8, enlarged);
+    break;
+  case 2:
+    drawBitmap(startx, starty, width, height, showers_8x8, enlarged);
+    break;
+  case 3:
+    drawBitmap(startx, starty, width, height, rain_8x8, enlarged);
+    break;
+  case 4:
+    drawBitmap(startx, starty, width, height, storm_8x8, enlarged);
+    break;
+  case 5:
+    drawBitmap(startx, starty, width, height, snow_8x8, enlarged);
+    break;
+  }
+}
 
 void fetchWeatherConfigFile()
 {
@@ -764,13 +928,17 @@ void saveWeatherConfig(const char *cityName, const char *countryCode, const char
 void processWeatherJson(const char *response)
 {
   const char *description = extractStringValue(response, "\"description\"", "Unknown");
-  printf("Weather Description: %s\n", description);
+  // printf("Weather Description: %s\n", description);
+  std::string uppercasedDescription = toUpperCase(description);
 
   const char *icon = extractStringValue(response, "\"icon\"", "??");
   printf("Weather Icon: %s\n", icon);
 
   float temp = extractFloatValue(response, "\"temp\"");
   printf("Temperature: %.2f\n", temp);
+  char tempString[16];
+  floatToChar(temp, tempString, sizeof(tempString));
+  strcat(tempString, "C");
 
   float temp_min = extractFloatValue(response, "\"temp_min\"");
   printf("Temperature min: %.2f\n", temp_min);
@@ -787,6 +955,13 @@ void processWeatherJson(const char *response)
   float timezone = extractFloatValue(response, "\"timezone\"");
   printf("timezone: %.2f\n", timezone);
   configTime(long(timezone), daylightOffset_sec, "pool.ntp.org");
+
+  std::string uppercasedCityName = capitalizeString(weatherCityName);
+  printCenter(uppercasedCityName.c_str(), 15, myORANGE);
+  printLeft(tempString, 22, 36, myGREEN, FreeSerifBold9pt7b);
+  drawWeatherIcon(3, 23, 8, 8, 0, true);
+  printCenter(uppercasedDescription.c_str(), 50, myPURPLE);
+  displayDateAndTime();
 }
 
 void getWeatherInfo()
@@ -814,44 +989,6 @@ void getWeatherInfo()
 
 #pragma endregion
 // ******************************************* END WEATHER ****************************************************
-
-// ******************************************* BEGIN CLOCK ****************************************************
-#pragma region CLOCK
-
-String getLocalTime()
-{
-  struct tm timeinfo;
-  if (!getLocalTime(&timeinfo))
-  {
-    Serial.println("Failed to obtain time");
-    return "";
-  }
-  char buffer[20];                                                // Create a buffer to hold the formatted time
-  strftime(buffer, sizeof(buffer), "%I:%M %P  %b %d", &timeinfo); // Format time into buffer
-  String localTime = String(buffer);                              // Convert buffer to String
-  // Serial.println(localTime);                                      // Print the time
-  return localTime; // Retur
-}
-
-void displayDateAndTime()
-{
-  String localTime = getLocalTime();
-  if (scrollingText != localTime)
-  {
-    scrollingText = localTime;
-    scrollingPrintCenter(scrollingText.c_str(), 5);
-  }
-
-  String musicPaused = "Music Paused";
-  if (lowerScrollingText != musicPaused)
-  {
-    lowerScrollingText = musicPaused;
-    scrollingPrintCenter(lowerScrollingText.c_str(), 62);
-  }
-}
-
-#pragma endregion
-// ******************************************* END CLOCK ******************************************************
 
 // ******************************************* BEGIN PLEX ALBUM ART *******************************************
 #pragma region PLEX_ALBUM_ART
@@ -1284,14 +1421,6 @@ void downloadSpotifyAlbumArt(String imageUrl)
 
 void processSpotifyJson(const char *response)
 {
-  bool isPlaying = extractBooleanValue(response, "\"is_playing\"");
-  // printf("isPlaying: %s\n", isPlaying ? "true" : "false");
-  if (!isPlaying)
-  {
-    displayDateAndTime();
-    return;
-  }
-
   const char *songName = extractStringValue(response, "\"name\"", true, "Unknown");
   // printf("songName: %s\n", songName);
   scrollingText = String(songName);
@@ -1303,6 +1432,14 @@ void processSpotifyJson(const char *response)
   const char *imageUrl = extractStringValue(response, "\"url\"", "Unknown");
   // printf("imageUrl: %s\n", imageUrl);
   strcpy(spotifyImageUrl, imageUrl);
+
+  bool isPlaying = extractBooleanValue(response, "\"is_playing\"");
+  // printf("isPlaying: %s\n", isPlaying ? "true" : "false");
+  if (!isPlaying)
+  {
+    displayDateAndTime();
+    return;
+  }
 }
 
 void getSpotifyCurrentTrack()
@@ -2258,8 +2395,8 @@ void loop()
         lastAlbumArtUpdateTime = currentMillis;
         getPlexCurrentTrack();
       }
-      scrollingPrintCenter(scrollingText.c_str(), 5);
-      scrollingPrintCenter2(lowerScrollingText.c_str(), 62);
+      printScrolling(scrollingText.c_str(), 5, myBLUE);
+      printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
     }
     else if (selectedTheme == SPOTIFY_ALBUM_ART_THEME)
     {
@@ -2272,8 +2409,8 @@ void loop()
           downloadSpotifyAlbumArt(String(spotifyImageUrl));
         }
       }
-      scrollingPrintCenter(scrollingText.c_str(), 5);
-      scrollingPrintCenter2(lowerScrollingText.c_str(), 62);
+      printScrolling(scrollingText.c_str(), 5, myBLUE);
+      printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
     }
     else
     {
