@@ -682,7 +682,7 @@ char weatherCityName[32];
 char weatherCountryCode[6];
 char weatherApikey[64];
 
-const int daylightOffset_sec = 3600;
+const int daylightOffset_sec = 3600; // daylight savings time is ON, 0 for OFF
 
 void fetchWeatherConfigFile()
 {
@@ -786,11 +786,13 @@ void processWeatherJson(const char *response)
 
   float timezone = extractFloatValue(response, "\"timezone\"");
   printf("timezone: %.2f\n", timezone);
-  configTime((long)timezone, daylightOffset_sec, "pool.ntp.org");
+  configTime(long(timezone), daylightOffset_sec, "pool.ntp.org");
 }
 
 void getWeatherInfo()
 {
+  fetchWeatherConfigFile();
+
   String city = String(weatherCityName);
   String countryCode = String(weatherCountryCode);
   String apiKey = String(weatherApikey);
@@ -2132,11 +2134,7 @@ void setup()
   clearImage();
   Serial.println("\r\nInitialisation done.");
 
-  if (selectedTheme == WEATHER_STATION_THEME)
-  {
-    fetchWeatherConfigFile();
-  }
-  else if (selectedTheme == PLEX_ALBUM_ART_THEME)
+  if (selectedTheme == PLEX_ALBUM_ART_THEME)
   {
     fetchPlexConfigFile();
   }
