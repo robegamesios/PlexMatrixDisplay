@@ -854,50 +854,37 @@ void savePlexConfig(const char *serverIp, const char *serverPort, const char *se
 
 void downloadPlexAlbumArt(const char *relativeUrl, const char *trackTitle, const char *artistName)
 {
-  HTTPClient http;
-  // Construct the full URL by appending the relative URL to the base URL
   String imageUrl = "http://" + String(plexServerIp) + ":" + String(plexServerPort) + "/photo/:/transcode?width=48&height=48&url=" + String(relativeUrl);
+  String headerKey = "X-Plex-Token";
+  String headerValue = plexServerToken;
+
   // Send GET request to the image URL
-  if (http.begin(imageUrl))
-  {
-    // Set the authentication token in the request headers
-    http.addHeader("X-Plex-Token", plexServerToken);
-    int httpCode = http.GET();
-    if (httpCode == HTTP_CODE_OK)
-    {
+  httpGet(imageUrl, headerKey, headerValue, [&](int httpCode, const String &response)
+          {
+    if (httpCode == HTTP_CODE_OK) {
       // Successfully downloaded the image, now save it to SPIFFS
       File file = SPIFFS.open(ALBUM_ART, FILE_WRITE);
-      if (!file)
-      {
-        Serial.println("Failed toc create file");
+      if (!file) {
+        Serial.println("Failed to create file");
         return;
       }
-      http.writeToStream(&file);
+      file.print(response);
       file.close();
       // Check if the file exists
-      if (SPIFFS.exists(ALBUM_ART))
-      {
+      if (SPIFFS.exists(ALBUM_ART)) {
         Serial.println("Image downloaded and saved successfully");
+        // Update the last downloaded album art URL using the captured parameter
+        lastAlbumArtURL = imageUrl;
         drawImagefromFile(ALBUM_ART, 8);
         scrollingText = trackTitle;
         lowerScrollingText = artistName;
-      }
-      else
-      {
+      } else {
         Serial.println("Failed to save image to SPIFFS");
       }
-    }
-    else
-    {
+    } else {
       Serial.print("Failed to download image. HTTP error code: ");
       Serial.println(httpCode);
-    }
-    http.end();
-  }
-  else
-  {
-    Serial.println("Failed to connect to image URL");
-  }
+    } });
 }
 
 void processPlexResponse(const String &payload)
