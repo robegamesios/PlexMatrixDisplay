@@ -98,8 +98,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
     <option value='10' title='Center Bars 2'>Center Bars 2</option>
     <option value='11' title='Black Bars'>Black Bars</option>
     </select><br><br>
-    <a class="update-button" onclick="updatePreference('selectedTheme', 100)">Select</a>
-    
+    <a class="update-button" onclick="updatePreference('selectedTheme', 100)">Select</a>    
 </div>
 <div class="card">
     <h2 class="card-title">PlexAmp Album Art</h2>
@@ -127,6 +126,19 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
     <input type="text" id="refreshToken" name="refreshToken"><br><br>
     <button onclick="updateSpotifyCredentials()">Save Settings</button><br><br>
     <a class="update-button" onclick="updatePreference('selectedTheme', 201)">Select</a>
+</div>
+<div class="card">
+    <h2 class="card-title">Weather Station</h2>
+    <p class="card-description">Displays weather info from openweather.org.</p>
+    <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/main/thumbnails/weatherIcon.jpg?raw=true" alt="Weather Station">
+    <label for="cityName">City Name:</label>
+    <input type="text" id="cityName" name="cityName"><br><br>
+     <label for="countryCode">Country Code:</label>
+    <input type="text" id="countryCode" name="countryCode"><br><br>
+    <label for="openweatherApiKey">OpenWeather.org API Key:</label>
+    <input type="text" id="openweatherApiKey" name="openweatherApiKey"><br><br>
+    <button onclick="updateWeatherStationCredentials()">Save Settings</button><br><br>
+    <a class="update-button" onclick="updatePreference('selectedTheme', 90)">Select</a>
 </div>
   <script>
     function uploadGifArt() {
@@ -166,6 +178,28 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
           document.getElementById('status').style.display = 'none';
         }, 2000);        
     });
+
+    function updateWeatherStationCredentials() {
+      // Get the values from the input fields
+      var cityName = document.getElementById("cityName").value;
+      var countryCode = document.getElementById("countryCode").value;
+      var openweatherApiKey = document.getElementById("openweatherApiKey").value;
+
+      var payload = cityName + "," + countryCode + "," + openweatherApiKey;
+
+      const xhr = new XMLHttpRequest();
+      xhr.onreadystatechange = function () {
+        if (this.readyState == 4 && this.status >= 200 && this.status < 299) {
+          document.getElementById('status').style.display = 'block';
+        }
+      };
+      xhr.open('POST', '/set?' + "weatheStationCredentials" + '=' + payload);
+      xhr.send();
+
+      setTimeout(() => {
+        document.getElementById('status').style.display = 'none';
+      }, 2000);
+    }
 
     function updatePlexCredentials() {
       // Get the values from the input fields

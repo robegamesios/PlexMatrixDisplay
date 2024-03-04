@@ -1,3 +1,4 @@
+#define WEATHER_STATION_THEME 90
 #define AUDIO_VISUALIZER_THEME 100
 #define PLEX_ALBUM_ART_THEME 200
 #define SPOTIFY_ALBUM_ART_THEME 201
@@ -649,6 +650,7 @@ Preferences preferences;
 const char *PREF_SELECTED_THEME = "selectedTheme";
 const char *PREF_AV_PATTERN = "avPattern";
 const char *PREF_GIF_ART_NAME = "gifArtName";
+const char *PREF_WEATHER_STATION_CREDENTIALS = "weatheStationCredentials";
 const char *PREF_PLEX_CREDENTIALS = "plexCredentials";
 const char *PREF_SPOTIFY_CREDENTIALS = "spotifyCredentials";
 
@@ -671,7 +673,93 @@ void loadPreferences()
 // ******************************************* BEGIN WEATHER **************************************************
 #pragma region WEATHER
 
+#define WM_WEATHER_CITY_NAME_LABEL "weatherCityName"
+#define WM_WEATHER_COUNTRY_CODE_LABEL "weatherCountryCode"
+#define WM_WEATHER_API_KEY_LABEL "weatherApiKey"
+#define WEATHER_CONFIG_JSON "/weather_config.json"
+
+char weatherCityName[32];
+char weatherCountryCode[6];
+char weatherApikey[64];
+
 const int daylightOffset_sec = 3600;
+
+void fetchWeatherConfigFile()
+{
+  if (SPIFFS.exists(WEATHER_CONFIG_JSON))
+  {
+    // file exists, reading and loading
+    Serial.println("reading config file");
+    File configFile = SPIFFS.open(WEATHER_CONFIG_JSON, "r");
+    if (configFile)
+    {
+      Serial.println("opened config file");
+      StaticJsonDocument<512> json;
+      DeserializationError error = deserializeJson(json, configFile);
+      serializeJsonPretty(json, Serial);
+      if (!error)
+      {
+        // Serial.println("\nparsed json");
+
+        if (json.containsKey(WM_WEATHER_CITY_NAME_LABEL) && json.containsKey(WM_WEATHER_COUNTRY_CODE_LABEL) && json.containsKey(WM_WEATHER_API_KEY_LABEL))
+        {
+          const char *tempCityName = json[WM_WEATHER_CITY_NAME_LABEL];
+          const char *tempCountryCode = json[WM_WEATHER_COUNTRY_CODE_LABEL];
+          const char *tempApiKey = json[WM_WEATHER_API_KEY_LABEL];
+
+          // Ensure null-termination and copy to plexServerIp and plexServerToken
+          strlcpy(weatherCityName, tempCityName, sizeof(weatherCityName));
+          strlcpy(weatherCountryCode, tempCountryCode, sizeof(weatherCountryCode));
+          strlcpy(weatherApikey, tempApiKey, sizeof(weatherApikey));
+          Serial.println("Weather City Name: " + String(weatherCityName));
+          Serial.println("Weather Country Code: " + String(weatherCountryCode));
+          Serial.println("Weather API Key: " + String(weatherApikey));
+        }
+        else
+        {
+          Serial.println("Config missing Weather credentials");
+        }
+      }
+      else
+      {
+        Serial.println("failed to load json config");
+      }
+      configFile.close();
+    }
+    else
+    {
+      Serial.println("Failed to open config file");
+    }
+  }
+  else
+  {
+    Serial.println("Config file does not exist");
+  }
+}
+
+// Save Plex config to SPIFF
+void saveWeatherConfig(const char *cityName, const char *countryCode, const char *apiKey)
+{
+  Serial.println(F("Saving config"));
+  StaticJsonDocument<512> json;
+  json[WM_WEATHER_CITY_NAME_LABEL] = cityName;       // Assigning C-style strings directly
+  json[WM_WEATHER_COUNTRY_CODE_LABEL] = countryCode; // Assigning C-style strings directly
+  json[WM_WEATHER_API_KEY_LABEL] = apiKey;           // Assigning C-style strings directly
+
+  File configFile = SPIFFS.open(WEATHER_CONFIG_JSON, "w");
+  if (!configFile)
+  {
+    Serial.println("failed to open config file for writing");
+    return; // Exit the function early if file opening fails
+  }
+
+  serializeJsonPretty(json, Serial);
+  if (serializeJson(json, configFile) == 0)
+  {
+    Serial.println(F("Failed to write to file"));
+  }
+  configFile.close();
+}
 
 void processWeatherJson(const char *response)
 {
@@ -703,11 +791,11 @@ void processWeatherJson(const char *response)
 
 void getWeatherInfo()
 {
-  String city = "vallejo";
-  String countryCode = "US";
-  String openWeatherMapApiKey = "";
+  String city = String(weatherCityName);
+  String countryCode = String(weatherCountryCode);
+  String apiKey = String(weatherApikey);
 
-  String endpoint = "http://api.openweathermap.org/data/2.5/weather?q=" + city + "," + countryCode + "&APPID=" + openWeatherMapApiKey + "&units=imperial";
+  String endpoint = "http://api.openweathermap.org/data/2.5/weather?q=" + city + "," + countryCode + "&APPID=" + apiKey + "&units=imperial";
 
   httpGet(endpoint, "", "", [](int httpCode, const String &response)
           {
@@ -1094,7 +1182,7 @@ void fetchSpotifyConfigFile()
       serializeJsonPretty(json, Serial);
       if (!error)
       {
-        Serial.println("\nparsed json");
+        // Serial.println("\nparsed json");
 
         if (json.containsKey(WM_SPOTIFY_CLIENT_ID_LABEL) && json.containsKey(WM_SPOTIFY_CLIENT_SECRET_LABEL) && json.containsKey(WM_SPOTIFY_REFRESH_TOKEN_LABEL))
         {
@@ -1801,6 +1889,39 @@ void processRequest(WiFiClient client, String method, String path, String key, S
       return;
     }
 
+    if (key == PREF_WEATHER_STATION_CREDENTIALS)
+    {
+      String payload = value;
+      Serial.println("Received payload: " + value);
+
+      int firstDelimiterIndex = payload.indexOf(',');
+      int secondDelimiterIndex = payload.indexOf(',', firstDelimiterIndex + 1);
+
+      String cityName = payload.substring(0, firstDelimiterIndex);
+      String countryCoundAndApiKey = payload.substring(firstDelimiterIndex + 1);
+      int thirdDelimiterIndex = countryCoundAndApiKey.indexOf(',');
+      String countryCode = countryCoundAndApiKey.substring(0, thirdDelimiterIndex);
+      String openweatherApiKey = countryCoundAndApiKey.substring(thirdDelimiterIndex + 1);
+
+      // Check if parameters are empty and provide default values if necessary
+      cityName = (cityName.length() == 0) ? weatherCityName : cityName;
+      countryCode = (countryCode.length() == 0) ? weatherCountryCode : countryCode;
+      openweatherApiKey = (openweatherApiKey.length() == 0) ? weatherApikey : openweatherApiKey;
+
+      client.println("HTTP/1.0 204 No Content");
+      saveWeatherConfig(cityName.c_str(), countryCode.c_str(), openweatherApiKey.c_str());
+
+      selectedTheme = WEATHER_STATION_THEME;
+
+      client.println("HTTP/1.0 204 No Content");
+      savePreferences();
+      currentlyRunningTheme = selectedTheme;
+      clearImage();
+
+      force_restart = true;
+      return;
+    }
+
     if (key == PREF_PLEX_CREDENTIALS)
     {
       String payload = value;
@@ -1938,6 +2059,8 @@ void handleHttpRequest()
 
 int failedConnectionAttempts = 0;
 const int MAX_FAILED_ATTEMPTS = 5;
+unsigned long lastWeatherUpdateTime = 0;
+const unsigned long weatherUpdateInterval = 3600000; // 1 hour
 unsigned long lastAlbumArtUpdateTime = 0;
 const unsigned long albumArtUpdateInterval = 5000; // 5000 milliseconds
 
@@ -2009,7 +2132,11 @@ void setup()
   clearImage();
   Serial.println("\r\nInitialisation done.");
 
-  if (selectedTheme == PLEX_ALBUM_ART_THEME)
+  if (selectedTheme == WEATHER_STATION_THEME)
+  {
+    fetchWeatherConfigFile();
+  }
+  else if (selectedTheme == PLEX_ALBUM_ART_THEME)
   {
     fetchPlexConfigFile();
   }
@@ -2117,7 +2244,16 @@ void loop()
 
     // Check album art every 5 seconds
     unsigned long currentMillis = millis();
-    if (selectedTheme == PLEX_ALBUM_ART_THEME)
+
+    if (selectedTheme == WEATHER_STATION_THEME)
+    {
+      if (currentMillis - lastWeatherUpdateTime >= weatherUpdateInterval)
+      {
+        lastWeatherUpdateTime = currentMillis;
+        getWeatherInfo();
+      }
+    }
+    else if (selectedTheme == PLEX_ALBUM_ART_THEME)
     {
       if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval)
       {
