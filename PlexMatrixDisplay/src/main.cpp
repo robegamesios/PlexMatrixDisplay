@@ -510,17 +510,6 @@ String lastAlbumArtURL = ""; // Variable to store the last downloaded album art 
 
 bool isScreenSaverMode = false;
 
-void printLocalTimeAndDate()
-{
-  struct tm timeinfo;
-  if (!getLocalTime(&timeinfo))
-  {
-    Serial.println("Failed to obtain time");
-    return;
-  }
-  Serial.println(&timeinfo, "%A, %B %d %Y %I:%M:%S");
-}
-
 String decodeHtmlEntities(String text)
 {
   String decodedText = text;
@@ -728,7 +717,7 @@ Preferences preferences;
 const char *PREF_SELECTED_THEME = "selectedTheme";
 const char *PREF_AV_PATTERN = "avPattern";
 const char *PREF_GIF_ART_NAME = "gifArtName";
-const char *PREF_WEATHER_STATION_CREDENTIALS = "weatheStationCredentials";
+const char *PREF_WEATHER_STATION_CREDENTIALS = "weatherStationCredentials";
 const char *PREF_PLEX_CREDENTIALS = "plexCredentials";
 const char *PREF_SPOTIFY_CREDENTIALS = "spotifyCredentials";
 
@@ -785,11 +774,15 @@ void displayDateAndTime()
 #define WM_WEATHER_CITY_NAME_LABEL "weatherCityName"
 #define WM_WEATHER_COUNTRY_CODE_LABEL "weatherCountryCode"
 #define WM_WEATHER_API_KEY_LABEL "weatherApiKey"
+#define WM_WEATHER_UNIT_LABEL "weatherUnit"
 #define WEATHER_CONFIG_JSON "/weather_config.json"
 
 char weatherCityName[32];
 char weatherCountryCode[6];
 char weatherApikey[64];
+char weatherUnit[2] = "0";
+
+bool weatherConfigExist = true;
 
 const int daylightOffset_sec = 3600; // daylight savings time is ON, 0 for OFF
 
@@ -810,16 +803,18 @@ void fetchWeatherConfigFile()
       {
         // Serial.println("\nparsed json");
 
-        if (json.containsKey(WM_WEATHER_CITY_NAME_LABEL) && json.containsKey(WM_WEATHER_COUNTRY_CODE_LABEL) && json.containsKey(WM_WEATHER_API_KEY_LABEL))
+        if (json.containsKey(WM_WEATHER_CITY_NAME_LABEL) && json.containsKey(WM_WEATHER_COUNTRY_CODE_LABEL) && json.containsKey(WM_WEATHER_API_KEY_LABEL) && json.containsKey(WM_WEATHER_UNIT_LABEL))
         {
           const char *tempCityName = json[WM_WEATHER_CITY_NAME_LABEL];
           const char *tempCountryCode = json[WM_WEATHER_COUNTRY_CODE_LABEL];
           const char *tempApiKey = json[WM_WEATHER_API_KEY_LABEL];
+          const char *tempUnit = json[WM_WEATHER_UNIT_LABEL];
 
           // Ensure null-termination and copy to plexServerIp and plexServerToken
           strlcpy(weatherCityName, tempCityName, sizeof(weatherCityName));
           strlcpy(weatherCountryCode, tempCountryCode, sizeof(weatherCountryCode));
           strlcpy(weatherApikey, tempApiKey, sizeof(weatherApikey));
+          strlcpy(weatherUnit, tempUnit, sizeof(weatherUnit));
           // Serial.println("Weather City Name: " + String(weatherCityName));
           // Serial.println("Weather Country Code: " + String(weatherCountryCode));
           // Serial.println("Weather API Key: " + String(weatherApikey));
@@ -827,33 +822,38 @@ void fetchWeatherConfigFile()
         else
         {
           Serial.println("Config missing Weather credentials");
+          weatherConfigExist = false;
         }
       }
       else
       {
         Serial.println("failed to load json config");
+        weatherConfigExist = false;
       }
       configFile.close();
     }
     else
     {
       Serial.println("Failed to open config file");
+      weatherConfigExist = false;
     }
   }
   else
   {
     Serial.println("Config file does not exist");
+    weatherConfigExist = false;
   }
 }
 
 // Save Plex config to SPIFF
-void saveWeatherConfig(const char *cityName, const char *countryCode, const char *apiKey)
+void saveWeatherConfig(const char *cityName, const char *countryCode, const char *apiKey, const char *unit)
 {
   Serial.println(F("Saving config"));
   StaticJsonDocument<512> json;
   json[WM_WEATHER_CITY_NAME_LABEL] = cityName;       // Assigning C-style strings directly
   json[WM_WEATHER_COUNTRY_CODE_LABEL] = countryCode; // Assigning C-style strings directly
   json[WM_WEATHER_API_KEY_LABEL] = apiKey;           // Assigning C-style strings directly
+  json[WM_WEATHER_UNIT_LABEL] = unit;                // Assigning C-style strings directly
 
   File configFile = SPIFFS.open(WEATHER_CONFIG_JSON, "w");
   if (!configFile)
@@ -926,51 +926,69 @@ void printTemperature(const char *icon, const char *buf, int x, int y, uint16_t 
 
   // Calculate the position for the circle
   int circleX = textStartX + w + 2; // Add some padding between text and circle
-  int circleY = y - h;     // Center the circle vertically
+  int circleY = y - h;              // Center the circle vertically
 
   dma_display->drawCircle(circleX, circleY, 1, textColor);
 }
 
-std::string degreesToDirection(int degrees) {
-    std::string direction;
-    int val = (degrees / 22.5) + 0.5;
-    switch(val % 16) {
-        case 0:
-        case 15:
-            direction = "N";
-            break;
-        case 1:
-        case 2:
-            direction = "NNE";
-            break;
-        case 3:
-        case 4:
-            direction = "NE";
-            break;
-        case 5:
-        case 6:
-            direction = "ENE";
-            break;
-        case 7:
-        case 8:
-            direction = "E";
-            break;
-        case 9:
-        case 10:
-            direction = "ESE";
-            break;
-        case 11:
-        case 12:
-            direction = "SE";
-            break;
-        case 13:
-        case 14:
-            direction = "SSE";
-            break;
-        default:
-            direction = "";
-    }
-    return direction;
+std::string degreesToDirection(int degrees)
+{
+  std::string direction;
+  int val = (degrees / 22.5) + 0.5;
+  switch (val % 16)
+  {
+  case 0:
+  case 15:
+    direction = "N";
+    break;
+  case 1:
+  case 2:
+    direction = "NNE";
+    break;
+  case 3:
+  case 4:
+    direction = "NE";
+    break;
+  case 5:
+  case 6:
+    direction = "ENE";
+    break;
+  case 7:
+  case 8:
+    direction = "E";
+    break;
+  case 9:
+  case 10:
+    direction = "ESE";
+    break;
+  case 11:
+  case 12:
+    direction = "SE";
+    break;
+  case 13:
+  case 14:
+    direction = "SSE";
+    break;
+  default:
+    direction = "";
+  }
+  return direction;
+}
+
+String getWeatherUnit()
+{
+  if (strcmp(weatherUnit, "1") == 0)
+  {
+    return "metric";
+  }
+  else if (strcmp(weatherUnit, "2") == 0)
+  {
+    return "standard";
+  }
+  else
+  {
+    return "imperial";
+  }
 }
 
 void processWeatherJson(const char *response)
@@ -982,6 +1000,29 @@ void processWeatherJson(const char *response)
 
   if (selectedTheme == WEATHER_STATION_THEME || isScreenSaverMode)
   {
+    std::string tempUnit = "";
+    std::string pressureUnit = "";
+    std::string windUnit = "";
+
+    if (strcmp(weatherUnit, "1") == 0)
+    {
+      tempUnit = "F";
+      pressureUnit = "hPa";
+      windUnit = "m/s";
+    }
+    else if (strcmp(weatherUnit, "2") == 0)
+    {
+      tempUnit = "K";
+      pressureUnit = "inHg";
+      windUnit = "MPH";
+    }
+    else
+    {
+      tempUnit = "C";
+      pressureUnit = "inHg";
+      windUnit = "MPH";
+    }
+
     const char *description = extractStringValue(response, "\"description\"", "Unknown");
     // printf("Weather Description: %s\n", description);
     std::string uppercasedDescription = toUpperCase(description);
@@ -997,17 +1038,17 @@ void processWeatherJson(const char *response)
     float temp_min = extractFloatValue(response, "\"temp_min\"");
     // printf("Temperature min: %.2f\n", temp_min);
     int tempMinInt = (int)temp_min;
-    std::string tempMinString = "L: " + std::to_string(tempMinInt) + "C" + "    ";
+    std::string tempMinString = "L: " + std::to_string(tempMinInt) + tempUnit + "    ";
 
     float temp_max = extractFloatValue(response, "\"temp_max\"");
     // printf("Temperature max: %.2f\n", temp_max);
     int tempMaxInt = (int)temp_max;
-    std::string tempMaxString = "H: " + std::to_string(tempMaxInt) + "C" + "    ";
+    std::string tempMaxString = "H: " + std::to_string(tempMaxInt) + tempUnit + "    ";
 
     float pressure = extractFloatValue(response, "\"pressure\"");
     // printf("Pressure: %.2f\n", pressure);
     int pressureInt = (int)pressure;
-    std::string pressureString = "P: " + std::to_string(pressureInt) + "HPA" + "    ";
+    std::string pressureString = "P: " + std::to_string(pressureInt) + pressureUnit + "    ";
 
     float humidity = extractFloatValue(response, "\"humidity\"");
     // printf("Humidity: %.2f\n", humidity);
@@ -1021,7 +1062,7 @@ void processWeatherJson(const char *response)
     float wind_speed = extractFloatValue(response, "\"speed\"");
     // printf("Wind speed: %.2f\n", wind_speed);
     int windSpeedInt = (int)wind_speed;
-    std::string windString = "Wind: " + degreesToDirection(windDirectionInt) + " " + std::to_string(windSpeedInt) + "MPH" + "    ";
+    std::string windString = "Wind: " + degreesToDirection(windDirectionInt) + " " + std::to_string(windSpeedInt) + windUnit + "    ";
 
     std::string extraInfo = tempMinString + tempMaxString + pressureString + humidityString + windString;
 
@@ -1042,8 +1083,11 @@ void getWeatherInfo()
   String city = String(weatherCityName);
   String countryCode = String(weatherCountryCode);
   String apiKey = String(weatherApikey);
+  String unit = getWeatherUnit();
 
-  String endpoint = "http://api.openweathermap.org/data/2.5/weather?q=" + city + "," + countryCode + "&APPID=" + apiKey + "&units=imperial";
+  String endpoint = "http://api.openweathermap.org/data/2.5/weather?q=" + city + "," + countryCode + "&APPID=" + apiKey + "&units=" + unit;
+
+  Serial.println(endpoint);
 
   httpGet(endpoint, "", "", [](int httpCode, const String &response)
           {
@@ -1060,15 +1104,27 @@ void getWeatherInfo()
 
 void displayScreenSaver()
 {
-  displayDateAndTime();
-  if (!isScreenSaverMode)
+  if (weatherConfigExist)
   {
-    isScreenSaverMode = true;
-    resetAlbumArtVariables();
-    clearImage();
-    getWeatherInfo();
+    displayDateAndTime();
+    if (!isScreenSaverMode)
+    {
+      isScreenSaverMode = true;
+      resetAlbumArtVariables();
+      clearImage();
+      getWeatherInfo();
+    }
+  }
+  else
+  {
+    if (!isScreenSaverMode)
+    {
+      isScreenSaverMode = true;
+      displayNoTrackPlaying();
+    }
   }
 }
+
 #pragma endregion
 // ******************************************* END WEATHER ****************************************************
 
@@ -2175,21 +2231,27 @@ void processRequest(WiFiClient client, String method, String path, String key, S
       Serial.println("Received payload: " + value);
 
       int firstDelimiterIndex = payload.indexOf(',');
-      int secondDelimiterIndex = payload.indexOf(',', firstDelimiterIndex + 1);
-
       String cityName = payload.substring(0, firstDelimiterIndex);
-      String countryCoundAndApiKey = payload.substring(firstDelimiterIndex + 1);
-      int thirdDelimiterIndex = countryCoundAndApiKey.indexOf(',');
-      String countryCode = countryCoundAndApiKey.substring(0, thirdDelimiterIndex);
-      String openweatherApiKey = countryCoundAndApiKey.substring(thirdDelimiterIndex + 1);
+      String countryCodeAndApiKeyAndUnit = payload.substring(firstDelimiterIndex + 1);
+
+      int secondDelimiterIndex = countryCodeAndApiKeyAndUnit.indexOf(',');
+      String countryCode = countryCodeAndApiKeyAndUnit.substring(0, secondDelimiterIndex);
+      String apiKeyAndUnit = countryCodeAndApiKeyAndUnit.substring(secondDelimiterIndex + 1);
+
+      int thirdDelimiterIndex = apiKeyAndUnit.indexOf(',');
+      String openweatherApiKey = apiKeyAndUnit.substring(0, thirdDelimiterIndex);
+      String unit = apiKeyAndUnit.substring(thirdDelimiterIndex + 1);
+
+      Serial.println("unit === " + unit);
 
       // Check if parameters are empty and provide default values if necessary
       cityName = (cityName.length() == 0) ? weatherCityName : cityName;
       countryCode = (countryCode.length() == 0) ? weatherCountryCode : countryCode;
       openweatherApiKey = (openweatherApiKey.length() == 0) ? weatherApikey : openweatherApiKey;
+      unit = (unit.length() == 0) ? weatherUnit : unit;
 
       client.println("HTTP/1.0 204 No Content");
-      saveWeatherConfig(cityName.c_str(), countryCode.c_str(), openweatherApiKey.c_str());
+      saveWeatherConfig(cityName.c_str(), countryCode.c_str(), openweatherApiKey.c_str(), unit.c_str());
 
       selectedTheme = WEATHER_STATION_THEME;
 
@@ -2508,7 +2570,10 @@ void setup()
 
   // get the weather
   fetchWeatherConfigFile();
-  getWeatherInfo();
+  if (weatherConfigExist)
+  {
+    getWeatherInfo();
+  }
 
   server.begin();
 }
@@ -2556,7 +2621,7 @@ void loop()
       loopAudioVisualizer();
     }
 
-    if ((selectedTheme == AUDIO_VISUALIZER_THEME && isScreenSaverMode) || selectedTheme != AUDIO_VISUALIZER_THEME)
+    if ((selectedTheme == AUDIO_VISUALIZER_THEME && isScreenSaverMode && weatherConfigExist) || selectedTheme != AUDIO_VISUALIZER_THEME)
     {
       printScrolling(scrollingText.c_str(), 5, myBLUE);
       printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);

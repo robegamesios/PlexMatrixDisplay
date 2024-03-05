@@ -137,6 +137,12 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
     <input type="text" id="countryCode" name="countryCode"><br><br>
     <label for="openweatherApiKey">OpenWeather.org API Key:</label>
     <input type="text" id="openweatherApiKey" name="openweatherApiKey"><br><br>
+    <select id="weatherUnitSelect" name='option'>
+    <option value='0' title='Select Unit'>Select Unit</option>
+    <option value='0' title='imperial'>Imperial</option>
+    <option value='1' title='metric'>Metric</option>
+    <option value='2' title='standard'>Standard</option>
+    </select><br><br>
     <button onclick="updateWeatherStationCredentials()">Save Settings</button><br><br>
     <a class="update-button" onclick="updatePreference('selectedTheme', 90)">Select</a>
 </div>
@@ -184,8 +190,9 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
       var cityName = document.getElementById("cityName").value;
       var countryCode = document.getElementById("countryCode").value;
       var openweatherApiKey = document.getElementById("openweatherApiKey").value;
+      var weatherUnit = document.getElementById("weatherUnitSelect").value;
 
-      var payload = cityName + "," + countryCode + "," + openweatherApiKey;
+      var payload = cityName + "," + countryCode + "," + openweatherApiKey + "," + weatherUnit;
 
       const xhr = new XMLHttpRequest();
       xhr.onreadystatechange = function () {
@@ -193,7 +200,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
           document.getElementById('status').style.display = 'block';
         }
       };
-      xhr.open('POST', '/set?' + "weatheStationCredentials" + '=' + payload);
+      xhr.open('POST', '/set?' + "weatherStationCredentials" + '=' + payload);
       xhr.send();
 
       setTimeout(() => {
