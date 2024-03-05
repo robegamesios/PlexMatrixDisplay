@@ -792,7 +792,7 @@ String getLocalTime()
   strftime(buffer, sizeof(buffer), "%I:%M %P  %b %d", &timeinfo); // Format time into buffer
   String localTime = String(buffer);                              // Convert buffer to String
   // Serial.println(localTime);                                      // Print the time
-  return localTime; // Retur
+  return localTime;
 }
 
 void displayDateAndTime()
@@ -822,32 +822,6 @@ char weatherCountryCode[6];
 char weatherApikey[64];
 
 const int daylightOffset_sec = 3600; // daylight savings time is ON, 0 for OFF
-
-// Draw one of the available weather icons in the specified space
-void drawWeatherIcon(int startx, int starty, int width, int height, uint8_t icon, bool enlarged)
-{
-  switch (icon)
-  {
-  case 0:
-    drawBitmap(startx, starty, width, height, sun_8x8, enlarged);
-    break;
-  case 1:
-    drawBitmap(startx, starty, width, height, cloud_8x8, enlarged);
-    break;
-  case 2:
-    drawBitmap(startx, starty, width, height, showers_8x8, enlarged);
-    break;
-  case 3:
-    drawBitmap(startx, starty, width, height, rain_8x8, enlarged);
-    break;
-  case 4:
-    drawBitmap(startx, starty, width, height, storm_8x8, enlarged);
-    break;
-  case 5:
-    drawBitmap(startx, starty, width, height, snow_8x8, enlarged);
-    break;
-  }
-}
 
 void fetchWeatherConfigFile()
 {
@@ -926,6 +900,38 @@ void saveWeatherConfig(const char *cityName, const char *countryCode, const char
   configFile.close();
 }
 
+// Draw one of the available weather icons in the specified space
+void drawWeatherIcon(int startx, int starty, int width, int height, const char *icon, bool enlarged)
+{
+  Serial.println(icon);
+  // Perform switch-case based on the entire string
+  if (strcmp(icon, "01d") == 0 || strcmp(icon, "01n") == 0)
+  {
+    drawBitmap(startx, starty, width, height, sun_8x8, enlarged);
+  }
+  else if (strcmp(icon, "02d") == 0 || strcmp(icon, "02n") == 0 || strcmp(icon, "03d") == 0 || strcmp(icon, "03n") == 0 ||
+           strcmp(icon, "04d") == 0 || strcmp(icon, "04n") == 0 || strcmp(icon, "50d") == 0)
+  {
+    drawBitmap(startx, starty, width, height, cloud_8x8, enlarged);
+  }
+  else if (strcmp(icon, "09d") == 0 || strcmp(icon, "09n") == 0)
+  {
+    drawBitmap(startx, starty, width, height, showers_8x8, enlarged);
+  }
+  else if (strcmp(icon, "10d") == 0 || strcmp(icon, "10n") == 0)
+  {
+    drawBitmap(startx, starty, width, height, rain_8x8, enlarged);
+  }
+  else if (strcmp(icon, "11d") == 0 || strcmp(icon, "11n") == 0)
+  {
+    drawBitmap(startx, starty, width, height, storm_8x8, enlarged);
+  }
+  else if (strcmp(icon, "13d") == 0 || strcmp(icon, "13n") == 0)
+  {
+    drawBitmap(startx, starty, width, height, snow_8x8, enlarged);
+  }
+}
+
 void processWeatherJson(const char *response)
 {
   const char *description = extractStringValue(response, "\"description\"", "Unknown");
@@ -933,7 +939,7 @@ void processWeatherJson(const char *response)
   std::string uppercasedDescription = toUpperCase(description);
 
   const char *icon = extractStringValue(response, "\"icon\"", "??");
-  printf("Weather Icon: %s\n", icon);
+  // printf("Weather Icon: %s\n", icon);
 
   float temp = extractFloatValue(response, "\"temp\"");
   // printf("Temperature: %.2f\n", temp);
@@ -971,13 +977,12 @@ void processWeatherJson(const char *response)
   printf("timezone: %.2f\n", timezone);
   configTime(long(timezone), daylightOffset_sec, "pool.ntp.org");
 
+  // display the info to LED Matrix
   std::string uppercasedCityName = toUpperCase(weatherCityName);
   printCenter(uppercasedCityName.c_str(), 15, myORANGE);
   printLeft(tempString.c_str(), 22, 36, myGREEN, FreeSerifBold9pt7b);
-  drawWeatherIcon(3, 23, 8, 8, 0, true);
+  drawWeatherIcon(3, 23, 8, 8, icon, true);
   printCenter(uppercasedDescription.c_str(), 50, myPURPLE);
-
-  Serial.println(extraInfo.c_str());
   lowerScrollingText = extraInfo.c_str();
 
   displayDateAndTime();
@@ -2406,8 +2411,6 @@ void loop()
         lastWeatherUpdateTime = currentMillis;
         getWeatherInfo();
       }
-      printScrolling(scrollingText.c_str(), 5, myBLUE);
-      printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
     }
     else if (selectedTheme == PLEX_ALBUM_ART_THEME)
     {
@@ -2416,8 +2419,6 @@ void loop()
         lastAlbumArtUpdateTime = currentMillis;
         getPlexCurrentTrack();
       }
-      printScrolling(scrollingText.c_str(), 5, myBLUE);
-      printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
     }
     else if (selectedTheme == SPOTIFY_ALBUM_ART_THEME)
     {
@@ -2430,13 +2431,17 @@ void loop()
           downloadSpotifyAlbumArt(String(spotifyImageUrl));
         }
       }
-      printScrolling(scrollingText.c_str(), 5, myBLUE);
-      printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
     }
     else
     {
       // Default to audio visualizer
       loopAudioVisualizer();
+    }
+
+    if (selectedTheme != AUDIO_VISUALIZER_THEME)
+    {
+      printScrolling(scrollingText.c_str(), 5, myBLUE);
+      printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
     }
   }
 }
