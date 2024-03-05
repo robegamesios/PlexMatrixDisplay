@@ -1137,6 +1137,7 @@ void downloadPlexAlbumArt(const char *relativeUrl, const char *trackTitle, const
       if (SPIFFS.exists(ALBUM_ART)) {
         Serial.println("Image downloaded and saved successfully");
         // Update the last downloaded album art URL using the captured parameter
+        clearImage();
         lastAlbumArtURL = imageUrl;
         drawImagefromFile(ALBUM_ART, 8);
         scrollingText = trackTitle;
@@ -1239,10 +1240,14 @@ void processPlexResponse(const String &payload)
       }
     }
   }
-  else
+  else if (lastAlbumArtURL != "")
   {
     displayDateAndTime();
     displayMusicPaused();
+  }
+  else
+  {
+    displayScreenSaver();
   }
 }
 
