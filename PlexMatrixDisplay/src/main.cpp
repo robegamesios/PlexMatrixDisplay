@@ -1067,8 +1067,11 @@ void processWeatherJson(const char *response)
     std::string extraInfo = tempMinString + tempMaxString + pressureString + humidityString + windString;
 
     // display the info to LED Matrix
-    std::string uppercasedCityName = toUpperCase(weatherCityName);
+    String cleanCityName = String(weatherCityName);
+    cleanCityName.replace("%20", " ");
+    std::string uppercasedCityName = toUpperCase(cleanCityName.c_str());
     printCenter(uppercasedCityName.c_str(), 15, myORANGE);
+    
     printTemperature(icon, tempString.c_str(), 22, 36, myGREEN, FreeSerifBold9pt7b);
     printCenter(uppercasedDescription.c_str(), 50, myPURPLE);
     lowerScrollingText = extraInfo.c_str();
@@ -1081,13 +1084,12 @@ void processWeatherJson(const char *response)
 void getWeatherInfo()
 {
   String city = String(weatherCityName);
+  city.replace("%20", "+"); // change space to + for cities with more than 1 word.
   String countryCode = String(weatherCountryCode);
   String apiKey = String(weatherApikey);
   String unit = getWeatherUnit();
 
   String endpoint = "http://api.openweathermap.org/data/2.5/weather?q=" + city + "," + countryCode + "&APPID=" + apiKey + "&units=" + unit;
-
-  Serial.println(endpoint);
 
   httpGet(endpoint, "", "", [](int httpCode, const String &response)
           {

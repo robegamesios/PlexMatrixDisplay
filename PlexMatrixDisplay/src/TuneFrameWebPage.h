@@ -131,9 +131,9 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
     <h2 class="card-title">Weather Station</h2>
     <p class="card-description">Displays weather info from openweather.org.</p>
     <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/main/thumbnails/weatherIcon.jpg?raw=true" alt="Weather Station">
-    <label for="cityName">City Name:</label>
+    <label for="cityName">City Name: e.g Palo Alto</label>
     <input type="text" id="cityName" name="cityName"><br><br>
-     <label for="countryCode">Country Code:</label>
+     <label for="countryCode">Country Code: e.g. US</label>
     <input type="text" id="countryCode" name="countryCode"><br><br>
     <label for="openweatherApiKey">OpenWeather.org API Key:</label>
     <input type="text" id="openweatherApiKey" name="openweatherApiKey"><br><br>
