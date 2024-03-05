@@ -601,6 +601,15 @@ void displayHttpRequestFailed()
   printCenter("FAILED", 40);
 }
 
+void displayMusicPaused()
+{
+  String musicPaused = "Music Paused";
+  if (lowerScrollingText != musicPaused)
+  {
+    lowerScrollingText = musicPaused;
+  }
+}
+
 // Function to escape double quote characters, remove newlines, and extra whitespace
 String escapeSpecialCharacters(const String &jsonString)
 {
@@ -792,14 +801,6 @@ void displayDateAndTime()
   if (scrollingText != localTime)
   {
     scrollingText = localTime;
-    printScrolling(scrollingText.c_str(), 5, myBLUE);
-  }
-
-  String musicPaused = "Music Paused";
-  if (lowerScrollingText != musicPaused)
-  {
-    lowerScrollingText = musicPaused;
-    printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
   }
 }
 
@@ -935,32 +936,50 @@ void processWeatherJson(const char *response)
   printf("Weather Icon: %s\n", icon);
 
   float temp = extractFloatValue(response, "\"temp\"");
-  printf("Temperature: %.2f\n", temp);
-  char tempString[16];
-  floatToChar(temp, tempString, sizeof(tempString));
-  strcat(tempString, "C");
+  // printf("Temperature: %.2f\n", temp);
+  int tempInt = (int)temp;
+  std::string tempString = std::to_string(tempInt) + "C";
 
   float temp_min = extractFloatValue(response, "\"temp_min\"");
-  printf("Temperature min: %.2f\n", temp_min);
+  // printf("Temperature min: %.2f\n", temp_min);
+  int tempMinInt = (int)temp_min;
+  std::string tempMinString = "Low:" + std::to_string(tempMinInt) + "C" + "    ";
 
   float temp_max = extractFloatValue(response, "\"temp_max\"");
-  printf("Temperature max: %.2f\n", temp_max);
+  // printf("Temperature max: %.2f\n", temp_max);
+  int tempMaxInt = (int)temp_max;
+  std::string tempMaxString = "High:" + std::to_string(tempMaxInt) + "C" + "    ";
+
   float pressure = extractFloatValue(response, "\"pressure\"");
-  printf("Pressure: %.2f\n", pressure);
+  // printf("Pressure: %.2f\n", pressure);
+  int pressureInt = (int)pressure;
+  std::string pressureString = "Pressure:" + std::to_string(pressureInt) + "HPA" + "    ";
+
   float humidity = extractFloatValue(response, "\"humidity\"");
-  printf("Humidity: %.2f\n", humidity);
+  // printf("Humidity: %.2f\n", humidity);
+  int humidityInt = (int)humidity;
+  std::string humidityString = "Humidity:" + std::to_string(humidityInt) + "%" + "    ";
+
   float wind_speed = extractFloatValue(response, "\"speed\"");
-  printf("Wind speed: %.2f\n", wind_speed);
+  // printf("Wind speed: %.2f\n", wind_speed);
+  int windSpeedInt = (int)wind_speed;
+  std::string windSpeedString = "Wind Speed:" + std::to_string(windSpeedInt) + "MPH" + "    ";
+
+  std::string extraInfo = tempMinString + tempMaxString + pressureString + humidityString + windSpeedString;
 
   float timezone = extractFloatValue(response, "\"timezone\"");
   printf("timezone: %.2f\n", timezone);
   configTime(long(timezone), daylightOffset_sec, "pool.ntp.org");
 
-  std::string uppercasedCityName = capitalizeString(weatherCityName);
+  std::string uppercasedCityName = toUpperCase(weatherCityName);
   printCenter(uppercasedCityName.c_str(), 15, myORANGE);
-  printLeft(tempString, 22, 36, myGREEN, FreeSerifBold9pt7b);
+  printLeft(tempString.c_str(), 22, 36, myGREEN, FreeSerifBold9pt7b);
   drawWeatherIcon(3, 23, 8, 8, 0, true);
   printCenter(uppercasedDescription.c_str(), 50, myPURPLE);
+
+  Serial.println(extraInfo.c_str());
+  lowerScrollingText = extraInfo.c_str();
+
   displayDateAndTime();
 }
 
@@ -1421,6 +1440,14 @@ void downloadSpotifyAlbumArt(String imageUrl)
 
 void processSpotifyJson(const char *response)
 {
+  bool isPlaying = extractBooleanValue(response, "\"is_playing\"");
+  // printf("isPlaying: %s\n", isPlaying ? "true" : "false");
+  if (!isPlaying)
+  {
+    displayDateAndTime();
+    return;
+  }
+
   const char *songName = extractStringValue(response, "\"name\"", true, "Unknown");
   // printf("songName: %s\n", songName);
   scrollingText = String(songName);
@@ -1432,14 +1459,6 @@ void processSpotifyJson(const char *response)
   const char *imageUrl = extractStringValue(response, "\"url\"", "Unknown");
   // printf("imageUrl: %s\n", imageUrl);
   strcpy(spotifyImageUrl, imageUrl);
-
-  bool isPlaying = extractBooleanValue(response, "\"is_playing\"");
-  // printf("isPlaying: %s\n", isPlaying ? "true" : "false");
-  if (!isPlaying)
-  {
-    displayDateAndTime();
-    return;
-  }
 }
 
 void getSpotifyCurrentTrack()
@@ -2262,10 +2281,10 @@ void setup()
   IPAddress ipAddress = WiFi.localIP();
   char ipAddressString[16];
   sprintf(ipAddressString, "%s", ipAddress.toString().c_str());
-  printCenter(ipAddressString, 10);
+  printCenter(ipAddressString, 10, myBLUE);
 
   Serial.println("Connected to WiFi");
-  printCenter("Connected to WiFi.", 50);
+  printCenter("Connected to WiFi.", 50, myGREEN);
   delay(5000);
 
   clearImage();
@@ -2387,6 +2406,8 @@ void loop()
         lastWeatherUpdateTime = currentMillis;
         getWeatherInfo();
       }
+      printScrolling(scrollingText.c_str(), 5, myBLUE);
+      printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
     }
     else if (selectedTheme == PLEX_ALBUM_ART_THEME)
     {
