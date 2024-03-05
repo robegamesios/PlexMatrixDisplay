@@ -493,35 +493,6 @@ float extractFloatValue(const char *jsonString, const char *fieldName, float def
   return extractedValue;
 }
 
-bool extractBooleanValue(const char *jsonString, const char *fieldName, bool defaultValue = false)
-{
-  // Find the start index of the field
-  const char *fieldStart = strstr(jsonString, fieldName);
-  if (fieldStart == nullptr)
-  {
-    printf("Error: Unable to find field '%s'.\n", fieldName);
-    return defaultValue;
-  }
-
-  // Move to the actual value
-  fieldStart += strlen(fieldName) + 1; // Account for the field name and colon: "\"fieldName\":"
-
-  // Compare the field value with "true" or "false"
-  if (strncmp(fieldStart, "true", 4) == 0)
-  {
-    return true;
-  }
-  else if (strncmp(fieldStart, "false", 5) == 0)
-  {
-    return false;
-  }
-  else
-  {
-    printf("Error: Invalid boolean value for field '%s'.\n", fieldName);
-    return defaultValue;
-  }
-}
-
 void floatToChar(float floatValue, char *charArray, int bufferSize)
 {
   snprintf(charArray, bufferSize, "%.0f", floatValue);
@@ -902,7 +873,6 @@ void saveWeatherConfig(const char *cityName, const char *countryCode, const char
 // Draw one of the available weather icons in the specified space
 void drawWeatherIcon(int startx, int starty, int width, int height, const char *icon, bool enlarged)
 {
-  Serial.println(icon);
   // Perform switch-case based on the entire string
   if (strcmp(icon, "01d") == 0 || strcmp(icon, "01n") == 0)
   {
@@ -931,6 +901,78 @@ void drawWeatherIcon(int startx, int starty, int width, int height, const char *
   }
 }
 
+void printTemperature(const char *icon, const char *buf, int x, int y, uint16_t textColor = myWHITE, GFXfont font = Picopixel)
+{
+  // Clear the screen
+  displayRect(x - 32, y - 5, PANEL_WIDTH, 8, 0); // Adjust the clear rectangle based on the new x position
+
+  int padding = 2;
+  int degreeSymbolWidth = 3;
+  int iconWidth = 16;
+
+  int16_t x1, y1;
+  uint16_t w, h;
+  dma_display->setFont(&font);
+  dma_display->getTextBounds(buf, 0, y, &x1, &y1, &w, &h);
+
+  int iconStartX = (PANEL_WIDTH - iconWidth - padding - w - degreeSymbolWidth) / 2;
+  int iconStartY = y - h + 1;
+  drawWeatherIcon(iconStartX, iconStartY, 8, 8, icon, true);
+
+  int textStartX = iconStartX + 16 + 2;
+  dma_display->setCursor(textStartX, y);
+  dma_display->setTextColor(textColor);
+  dma_display->print(buf);
+
+  // Calculate the position for the circle
+  int circleX = textStartX + w + 2; // Add some padding between text and circle
+  int circleY = y - h;     // Center the circle vertically
+
+  dma_display->drawCircle(circleX, circleY, 1, textColor);
+}
+
+std::string degreesToDirection(int degrees) {
+    std::string direction;
+    int val = (degrees / 22.5) + 0.5;
+    switch(val % 16) {
+        case 0:
+        case 15:
+            direction = "N";
+            break;
+        case 1:
+        case 2:
+            direction = "NNE";
+            break;
+        case 3:
+        case 4:
+            direction = "NE";
+            break;
+        case 5:
+        case 6:
+            direction = "ENE";
+            break;
+        case 7:
+        case 8:
+            direction = "E";
+            break;
+        case 9:
+        case 10:
+            direction = "ESE";
+            break;
+        case 11:
+        case 12:
+            direction = "SE";
+            break;
+        case 13:
+        case 14:
+            direction = "SSE";
+            break;
+        default:
+            direction = "";
+    }
+    return direction;
+}
+
 void processWeatherJson(const char *response)
 {
   // we need the timezone to setup the Time
@@ -950,43 +992,47 @@ void processWeatherJson(const char *response)
     float temp = extractFloatValue(response, "\"temp\"");
     // printf("Temperature: %.2f\n", temp);
     int tempInt = (int)temp;
-    std::string tempString = std::to_string(tempInt) + "C";
+    std::string tempString = std::to_string(tempInt);
 
     float temp_min = extractFloatValue(response, "\"temp_min\"");
     // printf("Temperature min: %.2f\n", temp_min);
     int tempMinInt = (int)temp_min;
-    std::string tempMinString = "Low:" + std::to_string(tempMinInt) + "C" + "    ";
+    std::string tempMinString = "L: " + std::to_string(tempMinInt) + "C" + "    ";
 
     float temp_max = extractFloatValue(response, "\"temp_max\"");
     // printf("Temperature max: %.2f\n", temp_max);
     int tempMaxInt = (int)temp_max;
-    std::string tempMaxString = "High:" + std::to_string(tempMaxInt) + "C" + "    ";
+    std::string tempMaxString = "H: " + std::to_string(tempMaxInt) + "C" + "    ";
 
     float pressure = extractFloatValue(response, "\"pressure\"");
     // printf("Pressure: %.2f\n", pressure);
     int pressureInt = (int)pressure;
-    std::string pressureString = "Pressure:" + std::to_string(pressureInt) + "HPA" + "    ";
+    std::string pressureString = "P: " + std::to_string(pressureInt) + "HPA" + "    ";
 
     float humidity = extractFloatValue(response, "\"humidity\"");
     // printf("Humidity: %.2f\n", humidity);
     int humidityInt = (int)humidity;
-    std::string humidityString = "Humidity:" + std::to_string(humidityInt) + "%" + "    ";
+    std::string humidityString = "H: " + std::to_string(humidityInt) + "%" + "    ";
+
+    float wind_direction = extractFloatValue(response, "\"deg\"");
+    // printf("Wind direction: %.2f\n", wind_direction);
+    int windDirectionInt = (int)wind_direction;
 
     float wind_speed = extractFloatValue(response, "\"speed\"");
     // printf("Wind speed: %.2f\n", wind_speed);
     int windSpeedInt = (int)wind_speed;
-    std::string windSpeedString = "Wind Speed:" + std::to_string(windSpeedInt) + "MPH" + "    ";
+    std::string windString = "Wind: " + degreesToDirection(windDirectionInt) + " " + std::to_string(windSpeedInt) + "MPH" + "    ";
 
-    std::string extraInfo = tempMinString + tempMaxString + pressureString + humidityString + windSpeedString;
+    std::string extraInfo = tempMinString + tempMaxString + pressureString + humidityString + windString;
 
     // display the info to LED Matrix
     std::string uppercasedCityName = toUpperCase(weatherCityName);
     printCenter(uppercasedCityName.c_str(), 15, myORANGE);
-    printLeft(tempString.c_str(), 22, 36, myGREEN, FreeSerifBold9pt7b);
-    drawWeatherIcon(3, 23, 8, 8, icon, true);
+    printTemperature(icon, tempString.c_str(), 22, 36, myGREEN, FreeSerifBold9pt7b);
     printCenter(uppercasedDescription.c_str(), 50, myPURPLE);
     lowerScrollingText = extraInfo.c_str();
 
+    delay(500);
     displayDateAndTime();
   }
 }
@@ -1909,6 +1955,7 @@ void loopAudioVisualizer()
       buttonPushCounter = DemoModeMem;  // restore settings
       autoChangePatterns = AutoModeMem; // restore settings
       DemoFlag = false;
+      isScreenSaverMode = DemoFlag;
     }
     // Now visualize those bar heights
     switch (buttonPushCounter)
@@ -1972,7 +2019,7 @@ void loopAudioVisualizer()
       DoublePeak(band);
       break;
     case 12:
-      getWeatherInfo();
+      displayScreenSaver();
       break;
     }
 
@@ -2509,7 +2556,7 @@ void loop()
       loopAudioVisualizer();
     }
 
-    if (selectedTheme != AUDIO_VISUALIZER_THEME)
+    if ((selectedTheme == AUDIO_VISUALIZER_THEME && isScreenSaverMode) || selectedTheme != AUDIO_VISUALIZER_THEME)
     {
       printScrolling(scrollingText.c_str(), 5, myBLUE);
       printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
