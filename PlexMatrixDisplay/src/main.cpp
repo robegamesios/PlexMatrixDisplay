@@ -533,11 +533,11 @@ void floatToChar(float floatValue, char *charArray, int bufferSize)
 // ******************************************* BEGIN GLOBAL VARS AND COMMON FUNC ******************************
 #pragma region GLOBAL_VARS_AND_UTILS
 
-#include "time.h"
-
 String scrollingText = "";
 String lowerScrollingText = "";
 String lastAlbumArtURL = ""; // Variable to store the last downloaded album art URL
+
+bool isScreenSaverMode = false;
 
 void printLocalTimeAndDate()
 {
@@ -780,6 +780,8 @@ void loadPreferences()
 // ******************************************* BEGIN CLOCK ****************************************************
 #pragma region CLOCK
 
+#include "time.h"
+
 String getLocalTime()
 {
   struct tm timeinfo;
@@ -798,10 +800,7 @@ String getLocalTime()
 void displayDateAndTime()
 {
   String localTime = getLocalTime();
-  if (scrollingText != localTime)
-  {
-    scrollingText = localTime;
-  }
+  scrollingText = localTime;
 }
 
 #pragma endregion
@@ -850,9 +849,9 @@ void fetchWeatherConfigFile()
           strlcpy(weatherCityName, tempCityName, sizeof(weatherCityName));
           strlcpy(weatherCountryCode, tempCountryCode, sizeof(weatherCountryCode));
           strlcpy(weatherApikey, tempApiKey, sizeof(weatherApikey));
-          Serial.println("Weather City Name: " + String(weatherCityName));
-          Serial.println("Weather Country Code: " + String(weatherCountryCode));
-          Serial.println("Weather API Key: " + String(weatherApikey));
+          // Serial.println("Weather City Name: " + String(weatherCityName));
+          // Serial.println("Weather Country Code: " + String(weatherCountryCode));
+          // Serial.println("Weather API Key: " + String(weatherApikey));
         }
         else
         {
@@ -936,10 +935,10 @@ void processWeatherJson(const char *response)
 {
   // we need the timezone to setup the Time
   float timezone = extractFloatValue(response, "\"timezone\"");
-  printf("timezone: %.2f\n", timezone);
+  // printf("timezone: %.2f\n", timezone);
   configTime(long(timezone), daylightOffset_sec, "pool.ntp.org");
 
-  if (selectedTheme == WEATHER_STATION_THEME)
+  if (selectedTheme == WEATHER_STATION_THEME || isScreenSaverMode)
   {
     const char *description = extractStringValue(response, "\"description\"", "Unknown");
     // printf("Weather Description: %s\n", description);
@@ -994,8 +993,6 @@ void processWeatherJson(const char *response)
 
 void getWeatherInfo()
 {
-  fetchWeatherConfigFile();
-
   String city = String(weatherCityName);
   String countryCode = String(weatherCountryCode);
   String apiKey = String(weatherApikey);
@@ -1006,7 +1003,7 @@ void getWeatherInfo()
           {
     if (httpCode == HTTP_CODE_OK) {
       String httpResponse = response;
-      Serial.println(httpResponse);
+      // Serial.println(httpResponse);
       const char *jsonCString = httpResponse.c_str();
       processWeatherJson(jsonCString);
     } else {
@@ -1015,6 +1012,17 @@ void getWeatherInfo()
     } });
 }
 
+void displayScreenSaver()
+{
+  displayDateAndTime();
+  if (!isScreenSaverMode)
+  {
+    isScreenSaverMode = true;
+    resetAlbumArtVariables();
+    clearImage();
+    getWeatherInfo();
+  }
+}
 #pragma endregion
 // ******************************************* END WEATHER ****************************************************
 
@@ -1246,10 +1254,10 @@ void getPlexCurrentTrack()
 
   httpGet(apiUrl, headerKey, headerValue, [](int httpCode, const String &response)
           {
-    if (httpCode == 200) {
+    if (httpCode == HTTP_CODE_OK) {
       processPlexResponse(response);
     } else {
-      displayHttpRequestFailed();
+      displayScreenSaver();
     } });
 }
 
@@ -1450,26 +1458,144 @@ void downloadSpotifyAlbumArt(String imageUrl)
 
 void processSpotifyJson(const char *response)
 {
-  bool isPlaying = extractBooleanValue(response, "\"is_playing\"");
-  // printf("isPlaying: %s\n", isPlaying ? "true" : "false");
-  if (!isPlaying)
+  char songName[64]; // Assuming the song name won't exceed 64 characters
+  songName[0] = '\0';
+  char artistName[64]; // Assuming the artist name won't exceed 64 characters
+  artistName[0] = '\0';
+  spotifyImageUrl[0] = '\0';
+
+  // Find the start index of the last occurrence of the "name" key
+  const char *nameKeyStart = strstr(response, "\"name\":");
+
+  const char *isPlayingStart = strstr(response, "\"is_playing\"");
+  if (isPlayingStart != nullptr)
   {
-    displayDateAndTime();
-    displayMusicPaused();
+    // Move to the value part after ":"
+    isPlayingStart = strchr(isPlayingStart, ':');
+
+    if (isPlayingStart != nullptr)
+    {
+      // Move to the actual value
+      isPlayingStart++;
+
+      // Check if it's 'true' or 'false'
+      if (strncmp(isPlayingStart, "true", 4) == 0)
+      {
+        if (isScreenSaverMode)
+        {
+          isScreenSaverMode = false;
+        }
+      }
+      else if (strncmp(isPlayingStart, "false", 5) == 0)
+      {
+        // music player is paused.
+        displayDateAndTime();
+        displayMusicPaused();
+        return;
+      }
+    }
+  }
+
+  if (nameKeyStart == nullptr)
+  {
+    Serial.println("*******Null name key, nothing to process");
+    getWeatherInfo();
     return;
   }
 
-  const char *songName = extractStringValue(response, "\"name\"", true, "Unknown");
-  // printf("songName: %s\n", songName);
-  scrollingText = String(songName);
+  const char *lastNameKeyStart = NULL;
+  while (nameKeyStart != NULL)
+  {
+    lastNameKeyStart = nameKeyStart;
+    nameKeyStart = strstr(nameKeyStart + 1, "\"name\":");
+  }
 
-  const char *artist = extractStringValue(response, "\"name\"", false, "Unknown");
-  // printf("artist: %s\n", artist);
-  lowerScrollingText = String(artist);
+  // If the last "name" key is found, get its associated value
+  if (lastNameKeyStart != NULL)
+  {
+    const char *songNameStart = lastNameKeyStart + 8;       // Move to the start of the value
+    const char *songNameEnd = strstr(songNameStart, "\","); // Find the end of the value
+    if (songNameEnd != NULL && songNameStart < songNameEnd)
+    {
+      strncpy(songName, songNameStart, songNameEnd - songNameStart);
+      songName[songNameEnd - songNameStart] = '\0'; // Null-terminate the string
+      // Serial.println("Song Name: " + String(songName));
+      scrollingText = String(songName);
+    }
+    else
+    {
+      Serial.println("Song name not found!");
+    }
+  }
+  else
+  {
+    Serial.println("No 'name' key found in the JSON response!");
+  }
 
-  const char *imageUrl = extractStringValue(response, "\"url\"", "Unknown");
-  // printf("imageUrl: %s\n", imageUrl);
-  strcpy(spotifyImageUrl, imageUrl);
+  // Find the start and end indices of the "name" field for the artist
+  const char *artistNameStart = strstr(response, "\"artists\"");
+  artistNameStart = strstr(artistNameStart, "\"name\":\"") + 8;
+  const char *artistNameEnd = strstr(artistNameStart, "\",");
+  if (artistNameStart != NULL && artistNameEnd != NULL && artistNameStart < artistNameEnd)
+  {
+    strncpy(artistName, artistNameStart, artistNameEnd - artistNameStart);
+    artistName[artistNameEnd - artistNameStart] = '\0'; // Null-terminate the string
+    // Serial.println("Artist Name: " + String(artistName));
+    lowerScrollingText = String(artistName);
+  }
+  else
+  {
+    Serial.println("Artist name not found!");
+  }
+
+  // Extract the URL of the 64x64 image
+  // Find the start index of the "images" key
+  const char *imagesKeyStart = strstr(response, "\"images\"");
+  if (imagesKeyStart != NULL)
+  {
+    // Find the start index of the array of images
+    const char *imagesArrayStart = strstr(imagesKeyStart, "[");
+    if (imagesArrayStart != NULL)
+    {
+      // Find the start index of the last image URL
+      const char *lastImageUrlStart = NULL;
+      const char *nextImageUrl = strstr(imagesArrayStart, "\"url\"");
+      while (nextImageUrl != NULL)
+      {
+        lastImageUrlStart = nextImageUrl;
+        nextImageUrl = strstr(lastImageUrlStart + 1, "\"url\"");
+      }
+
+      if (lastImageUrlStart != NULL)
+      {
+        // Find the start and end indices of the last image URL
+        const char *lastImageUrlValueStart = strstr(lastImageUrlStart, "https://");
+        const char *lastImageUrlEnd = strstr(lastImageUrlValueStart, "\",");
+        if (lastImageUrlValueStart != NULL && lastImageUrlEnd != NULL)
+        {
+          strncpy(spotifyImageUrl, lastImageUrlValueStart, lastImageUrlEnd - lastImageUrlValueStart);
+          spotifyImageUrl[lastImageUrlEnd - lastImageUrlValueStart] = '\0'; // Null-terminate the string
+          // Serial.println("Image URL: " + String(imageUrl));
+        }
+        else
+        {
+          Serial.println("Invalid format for the last image URL!");
+        }
+      }
+      else
+      {
+        Serial.println("No image URLs found in the 'images' array!");
+      }
+    }
+    else
+    {
+      Serial.println("No array found for 'images' key!");
+    }
+  }
+  else
+  {
+    Serial.println("No 'images' key found in the JSON response!");
+  }
 }
 
 void getSpotifyCurrentTrack()
@@ -1483,19 +1609,19 @@ void getSpotifyCurrentTrack()
 
   httpGet(endpoint, headerKey, headerValue, [](int httpCode, const String &response)
           {
-    if (httpCode == 401) {
+    if (httpCode == HTTP_CODE_UNAUTHORIZED) {
       Serial.println("***** Access token expired");
       restartDevice();
-    } else if (httpCode == 204) {
-      displayNoTrackPlaying();
-    } else if (httpCode == 200) {
+    } else if (httpCode == HTTP_CODE_NO_CONTENT) {
+      displayScreenSaver();
+    } else if (httpCode == HTTP_CODE_OK) {
       // Escape double quotes
       String escapedResponse = escapeSpecialCharacters(response);
 
       // Convert to const char*
       const char *jsonCString = escapedResponse.c_str();
-
       processSpotifyJson(jsonCString);
+
     } else {
       displayHttpRequestFailed();
     } });
@@ -2329,6 +2455,7 @@ void setup()
   }
 
   // get the weather
+  fetchWeatherConfigFile();
   getWeatherInfo();
 
   server.begin();
