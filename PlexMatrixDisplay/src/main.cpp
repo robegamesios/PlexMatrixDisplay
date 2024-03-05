@@ -1515,7 +1515,6 @@ void getSpotifyCurrentTrack()
 #include "FFT.h"
 #include "Settings.h"
 #include "PatternsHUB75.h"
-#include "fire.h"
 
 #define up 1
 #define down 0
@@ -1618,72 +1617,6 @@ void Calibration(void)
       Serial.printf(",");
     else
       Serial.print(" };\n");
-  }
-}
-
-void make_fire()
-{
-  uint16_t i, j;
-
-  if (t > millis())
-    return;
-  t = millis() + (1000 / FPS);
-
-  // First, move all existing heat points up the display and fade
-
-  for (i = rows - 1; i > 0; --i)
-  {
-    for (j = 0; j < cols; ++j)
-    {
-      uint8_t n = 0;
-      if (pix[i - 1][j] > 0)
-        n = pix[i - 1][j] - 1;
-      pix[i][j] = n;
-    }
-  }
-
-  // Heat the bottom row
-  for (j = 0; j < cols; ++j)
-  {
-    i = pix[0][j];
-    if (i > 0)
-    {
-      pix[0][j] = random(NCOLORS - 6, NCOLORS - 2);
-    }
-  }
-
-  // flare
-  for (i = 0; i < nflare; ++i)
-  {
-    int x = flare[i] & 0xff;
-    int y = (flare[i] >> 8) & 0xff;
-    int z = (flare[i] >> 16) & 0xff;
-    glow(x, y, z);
-    if (z > 1)
-    {
-      flare[i] = (flare[i] & 0xffff) | ((z - 1) << 16);
-    }
-    else
-    {
-      // This flare is out
-      for (int j = i + 1; j < nflare; ++j)
-      {
-        flare[j - 1] = flare[j];
-      }
-      --nflare;
-    }
-  }
-  newflare();
-
-  // Set and draw
-  for (i = 0; i < rows; ++i)
-  {
-    for (j = 0; j < cols; ++j)
-    {
-      // matrix -> drawPixel(j, rows - i, colors[pix[i][j]]);
-      CRGB COlsplit = colors[pix[i][j]];
-      dma_display->drawPixelRGB888(j, rows - i, COlsplit.r, COlsplit.g, COlsplit.b);
-    }
   }
 }
 
@@ -1908,7 +1841,7 @@ void loopAudioVisualizer()
       DoublePeak(band);
       break;
     case 12:
-      make_fire(); // go to demo mode
+      getWeatherInfo();
       break;
     }
 
