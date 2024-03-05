@@ -934,58 +934,62 @@ void drawWeatherIcon(int startx, int starty, int width, int height, const char *
 
 void processWeatherJson(const char *response)
 {
-  const char *description = extractStringValue(response, "\"description\"", "Unknown");
-  // printf("Weather Description: %s\n", description);
-  std::string uppercasedDescription = toUpperCase(description);
-
-  const char *icon = extractStringValue(response, "\"icon\"", "??");
-  // printf("Weather Icon: %s\n", icon);
-
-  float temp = extractFloatValue(response, "\"temp\"");
-  // printf("Temperature: %.2f\n", temp);
-  int tempInt = (int)temp;
-  std::string tempString = std::to_string(tempInt) + "C";
-
-  float temp_min = extractFloatValue(response, "\"temp_min\"");
-  // printf("Temperature min: %.2f\n", temp_min);
-  int tempMinInt = (int)temp_min;
-  std::string tempMinString = "Low:" + std::to_string(tempMinInt) + "C" + "    ";
-
-  float temp_max = extractFloatValue(response, "\"temp_max\"");
-  // printf("Temperature max: %.2f\n", temp_max);
-  int tempMaxInt = (int)temp_max;
-  std::string tempMaxString = "High:" + std::to_string(tempMaxInt) + "C" + "    ";
-
-  float pressure = extractFloatValue(response, "\"pressure\"");
-  // printf("Pressure: %.2f\n", pressure);
-  int pressureInt = (int)pressure;
-  std::string pressureString = "Pressure:" + std::to_string(pressureInt) + "HPA" + "    ";
-
-  float humidity = extractFloatValue(response, "\"humidity\"");
-  // printf("Humidity: %.2f\n", humidity);
-  int humidityInt = (int)humidity;
-  std::string humidityString = "Humidity:" + std::to_string(humidityInt) + "%" + "    ";
-
-  float wind_speed = extractFloatValue(response, "\"speed\"");
-  // printf("Wind speed: %.2f\n", wind_speed);
-  int windSpeedInt = (int)wind_speed;
-  std::string windSpeedString = "Wind Speed:" + std::to_string(windSpeedInt) + "MPH" + "    ";
-
-  std::string extraInfo = tempMinString + tempMaxString + pressureString + humidityString + windSpeedString;
-
+  // we need the timezone to setup the Time
   float timezone = extractFloatValue(response, "\"timezone\"");
   printf("timezone: %.2f\n", timezone);
   configTime(long(timezone), daylightOffset_sec, "pool.ntp.org");
 
-  // display the info to LED Matrix
-  std::string uppercasedCityName = toUpperCase(weatherCityName);
-  printCenter(uppercasedCityName.c_str(), 15, myORANGE);
-  printLeft(tempString.c_str(), 22, 36, myGREEN, FreeSerifBold9pt7b);
-  drawWeatherIcon(3, 23, 8, 8, icon, true);
-  printCenter(uppercasedDescription.c_str(), 50, myPURPLE);
-  lowerScrollingText = extraInfo.c_str();
+  if (selectedTheme == WEATHER_STATION_THEME)
+  {
+    const char *description = extractStringValue(response, "\"description\"", "Unknown");
+    // printf("Weather Description: %s\n", description);
+    std::string uppercasedDescription = toUpperCase(description);
 
-  displayDateAndTime();
+    const char *icon = extractStringValue(response, "\"icon\"", "??");
+    // printf("Weather Icon: %s\n", icon);
+
+    float temp = extractFloatValue(response, "\"temp\"");
+    // printf("Temperature: %.2f\n", temp);
+    int tempInt = (int)temp;
+    std::string tempString = std::to_string(tempInt) + "C";
+
+    float temp_min = extractFloatValue(response, "\"temp_min\"");
+    // printf("Temperature min: %.2f\n", temp_min);
+    int tempMinInt = (int)temp_min;
+    std::string tempMinString = "Low:" + std::to_string(tempMinInt) + "C" + "    ";
+
+    float temp_max = extractFloatValue(response, "\"temp_max\"");
+    // printf("Temperature max: %.2f\n", temp_max);
+    int tempMaxInt = (int)temp_max;
+    std::string tempMaxString = "High:" + std::to_string(tempMaxInt) + "C" + "    ";
+
+    float pressure = extractFloatValue(response, "\"pressure\"");
+    // printf("Pressure: %.2f\n", pressure);
+    int pressureInt = (int)pressure;
+    std::string pressureString = "Pressure:" + std::to_string(pressureInt) + "HPA" + "    ";
+
+    float humidity = extractFloatValue(response, "\"humidity\"");
+    // printf("Humidity: %.2f\n", humidity);
+    int humidityInt = (int)humidity;
+    std::string humidityString = "Humidity:" + std::to_string(humidityInt) + "%" + "    ";
+
+    float wind_speed = extractFloatValue(response, "\"speed\"");
+    // printf("Wind speed: %.2f\n", wind_speed);
+    int windSpeedInt = (int)wind_speed;
+    std::string windSpeedString = "Wind Speed:" + std::to_string(windSpeedInt) + "MPH" + "    ";
+
+    std::string extraInfo = tempMinString + tempMaxString + pressureString + humidityString + windSpeedString;
+
+    // display the info to LED Matrix
+    std::string uppercasedCityName = toUpperCase(weatherCityName);
+    printCenter(uppercasedCityName.c_str(), 15, myORANGE);
+    printLeft(tempString.c_str(), 22, 36, myGREEN, FreeSerifBold9pt7b);
+    drawWeatherIcon(3, 23, 8, 8, icon, true);
+    printCenter(uppercasedDescription.c_str(), 50, myPURPLE);
+    lowerScrollingText = extraInfo.c_str();
+
+    displayDateAndTime();
+  }
 }
 
 void getWeatherInfo()
@@ -1230,6 +1234,7 @@ void processPlexResponse(const String &payload)
   else
   {
     displayDateAndTime();
+    displayMusicPaused();
   }
 }
 
@@ -1450,6 +1455,7 @@ void processSpotifyJson(const char *response)
   if (!isPlaying)
   {
     displayDateAndTime();
+    displayMusicPaused();
     return;
   }
 
