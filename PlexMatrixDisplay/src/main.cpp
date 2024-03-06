@@ -30,6 +30,8 @@ uint16_t myGREEN = dma_display->color565(0, 255, 0);
 uint16_t myBLUE = dma_display->color565(0, 0, 255);
 uint16_t myORANGE = dma_display->color565(255, 140, 0);
 uint16_t myPURPLE = dma_display->color565(138, 43, 226);
+uint16_t myCYAN = dma_display->color565(0, 204, 204);
+uint16_t myGOLD = dma_display->color565(204, 204, 0);
 
 JPEGDEC jpeg;
 
@@ -120,13 +122,14 @@ void printCenter(const char *buf, int y, uint16_t textColor = myWHITE, GFXfont f
 
 void printLeft(const char *buf, int x, int y, uint16_t textColor = myWHITE, GFXfont font = Picopixel)
 {
-  // Clear the screen
-  displayRect(x - 32, y - 5, PANEL_WIDTH, 8, 0); // Adjust the clear rectangle based on the new x position
-
   int16_t x1, y1;
   uint16_t w, h;
   dma_display->setFont(&font);
   dma_display->getTextBounds(buf, 0, y, &x1, &y1, &w, &h);
+
+  // Clear the screen
+  displayRect(x, y - 5, w, 8, 0);
+
   dma_display->setCursor(x, y);
   dma_display->setTextColor(textColor);
   dma_display->print(buf);
@@ -882,28 +885,39 @@ void drawWeatherIcon(int startx, int starty, int width, int height, const char *
   // Perform switch-case based on the entire string
   if (strcmp(icon, "01d") == 0 || strcmp(icon, "01n") == 0)
   {
-    drawBitmap(startx, starty, width, height, sun_8x8, enlarged);
+    drawBitmap(startx, starty, width, height, sun_24x24, enlarged);
   }
-  else if (strcmp(icon, "02d") == 0 || strcmp(icon, "02n") == 0 || strcmp(icon, "03d") == 0 || strcmp(icon, "03n") == 0 ||
-           strcmp(icon, "04d") == 0 || strcmp(icon, "04n") == 0 || strcmp(icon, "50d") == 0)
+  else if (strcmp(icon, "02d") == 0 || strcmp(icon, "02n") == 0)
   {
-    drawBitmap(startx, starty, width, height, cloud_8x8, enlarged);
+    drawBitmap(startx, starty, width, height, fewClouds_24x24, enlarged);
+  }
+  else if (strcmp(icon, "03d") == 0 || strcmp(icon, "03n") == 0)
+  {
+    drawBitmap(startx, starty, 24, 24, scatteredClouds_24x24, enlarged);
+  }
+  else if (strcmp(icon, "04d") == 0 || strcmp(icon, "04n") == 0)
+  {
+    drawBitmap(startx, starty, 24, 24, brokenClouds_24x24, enlarged);
   }
   else if (strcmp(icon, "09d") == 0 || strcmp(icon, "09n") == 0)
   {
-    drawBitmap(startx, starty, width, height, showers_8x8, enlarged);
+    drawBitmap(startx, starty, width, height, showers_24x24, enlarged);
   }
   else if (strcmp(icon, "10d") == 0 || strcmp(icon, "10n") == 0)
   {
-    drawBitmap(startx, starty, width, height, rain_8x8, enlarged);
+    drawBitmap(startx, starty, width, height, rain_24x24, enlarged);
   }
   else if (strcmp(icon, "11d") == 0 || strcmp(icon, "11n") == 0)
   {
-    drawBitmap(startx, starty, width, height, storm_8x8, enlarged);
+    drawBitmap(startx, starty, width, height, thunderstorm_24x24, enlarged);
   }
   else if (strcmp(icon, "13d") == 0 || strcmp(icon, "13n") == 0)
   {
-    drawBitmap(startx, starty, width, height, snow_8x8, enlarged);
+    drawBitmap(startx, starty, width, height, snow_24x24, enlarged);
+  }
+  else if (strcmp(icon, "50d") == 0)
+  {
+    drawBitmap(startx, starty, width, height, mist_24x24, enlarged);
   }
 }
 
@@ -911,10 +925,8 @@ void printTemperature(const char *icon, const char *buf, int x, int y, uint16_t 
 {
   int padding = 2;
   int degreeSymbolWidth = 3;
-  int iconWidth = 16;
-
-  // Clear the screen
-  displayRect(0, y - iconWidth + padding, PANEL_WIDTH, iconWidth + padding, myBLACK); // Adjust the clear rectangle based on the new x position
+  int iconWidth = 24;
+  int iconHeight = 24;
 
   int16_t x1, y1;
   uint16_t w, h;
@@ -922,17 +934,21 @@ void printTemperature(const char *icon, const char *buf, int x, int y, uint16_t 
   dma_display->getTextBounds(buf, 0, y, &x1, &y1, &w, &h);
 
   int iconStartX = (PANEL_WIDTH - iconWidth - padding - w - degreeSymbolWidth) / 2;
-  int iconStartY = y - h + 1;
-  drawWeatherIcon(iconStartX, iconStartY, 8, 8, icon, true);
+  int iconStartY = y - iconHeight + (iconHeight - h) / 2;
 
-  int textStartX = iconStartX + 16 + 2;
+  // Clear the screen
+  displayRect(0, iconStartY, PANEL_WIDTH, iconHeight, myBLACK); // Adjust the clear rectangle based on the new x position
+
+  drawWeatherIcon(iconStartX, iconStartY, iconWidth, iconHeight, icon, false);
+
+  int textStartX = iconStartX + iconWidth + padding;
   dma_display->setCursor(textStartX, y);
   dma_display->setTextColor(textColor);
   dma_display->print(buf);
 
   // Calculate the position for the circle
-  int circleX = textStartX + w + 2; // Add some padding between text and circle
-  int circleY = y - h;              // Center the circle vertically
+  int circleX = textStartX + w + padding; // Add some padding between text and circle
+  int circleY = y - h;                    // Center the circle vertically
 
   dma_display->drawCircle(circleX, circleY, 1, textColor);
 }
@@ -1041,25 +1057,30 @@ void processWeatherJson(const char *response)
     int tempInt = (int)temp;
     std::string tempString = std::to_string(tempInt);
 
+    float feelsLike = extractFloatValue(response, "\"feels_like\"");
+    // printf("Temperature min: %.2f\n", temp_min);
+    int feelsLikeInt = (int)feelsLike;
+    std::string feelsLikeString = "FL: " + std::to_string(feelsLikeInt) + tempUnit;
+
     float temp_min = extractFloatValue(response, "\"temp_min\"");
     // printf("Temperature min: %.2f\n", temp_min);
     int tempMinInt = (int)temp_min;
-    std::string tempMinString = "L: " + std::to_string(tempMinInt) + tempUnit + "    ";
+    std::string tempMinString = "L: " + std::to_string(tempMinInt) + tempUnit;
 
     float temp_max = extractFloatValue(response, "\"temp_max\"");
     // printf("Temperature max: %.2f\n", temp_max);
     int tempMaxInt = (int)temp_max;
-    std::string tempMaxString = "H: " + std::to_string(tempMaxInt) + tempUnit + "    ";
+    std::string tempMaxString = "H: " + std::to_string(tempMaxInt) + tempUnit;
 
     float pressure = extractFloatValue(response, "\"pressure\"");
     // printf("Pressure: %.2f\n", pressure);
     int pressureInt = (int)pressure;
-    std::string pressureString = "P: " + std::to_string(pressureInt) + pressureUnit + "    ";
+    std::string pressureString = "P: " + std::to_string(pressureInt) + pressureUnit;
 
     float humidity = extractFloatValue(response, "\"humidity\"");
     // printf("Humidity: %.2f\n", humidity);
     int humidityInt = (int)humidity;
-    std::string humidityString = "H: " + std::to_string(humidityInt) + "%" + "    ";
+    std::string humidityString = "H: " + std::to_string(humidityInt) + "%";
 
     float wind_direction = extractFloatValue(response, "\"deg\"");
     // printf("Wind direction: %.2f\n", wind_direction);
@@ -1068,18 +1089,26 @@ void processWeatherJson(const char *response)
     float wind_speed = extractFloatValue(response, "\"speed\"");
     // printf("Wind speed: %.2f\n", wind_speed);
     int windSpeedInt = (int)wind_speed;
-    std::string windString = "Wind: " + degreesToDirection(windDirectionInt) + " " + std::to_string(windSpeedInt) + windUnit + "    ";
+    std::string windString = "Wind: " + degreesToDirection(windDirectionInt) + " " + std::to_string(windSpeedInt) + windUnit;
 
-    std::string extraInfo = tempMinString + tempMaxString + pressureString + humidityString + windString;
+    std::string extraInfo = uppercasedDescription + "    " + pressureString + "    " + windString;
 
     // display the info to LED Matrix
     String cleanCityName = String(weatherCityName);
     cleanCityName.replace("%20", " ");
     std::string uppercasedCityName = toUpperCase(cleanCityName.c_str());
-    printCenter(uppercasedCityName.c_str(), 15, myORANGE);
+    printCenter(uppercasedCityName.c_str(), 13, myORANGE);
 
-    printTemperature(icon, tempString.c_str(), 22, 36, myGREEN, FreeSerifBold9pt7b);
-    printCenter(uppercasedDescription.c_str(), 50, myPURPLE);
+    printTemperature(icon, tempString.c_str(), 22, 35, myGREEN, FreeSerifBold9pt7b);
+
+    printLeft(feelsLikeString.c_str(), 5, 47, myPURPLE);
+    printLeft(humidityString.c_str(), 5, 54, myGOLD);
+
+    printLeft(tempMinString.c_str(), 40, 47, myCYAN);
+    printLeft(tempMaxString.c_str(), 40, 54, myRED);
+
+    lowerScrollingText = uppercasedDescription.c_str();
+
     lowerScrollingText = extraInfo.c_str();
 
     delay(500);
