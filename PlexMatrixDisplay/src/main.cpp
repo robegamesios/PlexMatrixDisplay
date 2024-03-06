@@ -570,15 +570,6 @@ void displayCheckSpotifyCredentials()
   printCenter("CREDENTIALS", 40);
 }
 
-void displayCheckSpotifyCredentials()
-{
-  Serial.println("Check Spotify credentials");
-  resetAlbumArtVariables();
-  clearImage();
-  printCenter("CHECK SPOTIFY", 30);
-  printCenter("CREDENTIALS", 40);
-}
-
 void displayMusicPaused()
 {
   String musicPaused = "Music Paused";
