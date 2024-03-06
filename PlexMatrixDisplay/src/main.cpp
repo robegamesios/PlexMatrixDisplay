@@ -552,13 +552,31 @@ void displayNoTrackPlaying()
   printCenter("PLAYING", 40);
 }
 
-void displayHttpRequestFailed()
+void displayCheckWeatherCredentials()
 {
-  Serial.println("HTTP request failed");
+  Serial.println("Check Weather credentials");
   resetAlbumArtVariables();
   clearImage();
-  printCenter("HTTP REQUEST", 30);
-  printCenter("FAILED", 40);
+  printCenter("CHECK WEATHER", 30);
+  printCenter("CREDENTIALS", 40);
+}
+
+void displayCheckSpotifyCredentials()
+{
+  Serial.println("Check Spotify credentials");
+  resetAlbumArtVariables();
+  clearImage();
+  printCenter("CHECK SPOTIFY", 30);
+  printCenter("CREDENTIALS", 40);
+}
+
+void displayCheckSpotifyCredentials()
+{
+  Serial.println("Check Spotify credentials");
+  resetAlbumArtVariables();
+  clearImage();
+  printCenter("CHECK SPOTIFY", 30);
+  printCenter("CREDENTIALS", 40);
 }
 
 void displayMusicPaused()
@@ -782,7 +800,7 @@ char weatherCountryCode[6];
 char weatherApikey[64];
 char weatherUnit[2] = "0";
 
-bool weatherConfigExist = true;
+bool weatherConfigExist = false;
 
 const int daylightOffset_sec = 3600; // daylight savings time is ON, 0 for OFF
 
@@ -818,30 +836,27 @@ void fetchWeatherConfigFile()
           // Serial.println("Weather City Name: " + String(weatherCityName));
           // Serial.println("Weather Country Code: " + String(weatherCountryCode));
           // Serial.println("Weather API Key: " + String(weatherApikey));
+          weatherConfigExist = true;
         }
         else
         {
           Serial.println("Config missing Weather credentials");
-          weatherConfigExist = false;
         }
       }
       else
       {
         Serial.println("failed to load json config");
-        weatherConfigExist = false;
       }
       configFile.close();
     }
     else
     {
       Serial.println("Failed to open config file");
-      weatherConfigExist = false;
     }
   }
   else
   {
     Serial.println("Config file does not exist");
-    weatherConfigExist = false;
   }
 }
 
@@ -1006,7 +1021,7 @@ void processWeatherJson(const char *response)
 
     if (strcmp(weatherUnit, "1") == 0)
     {
-      tempUnit = "F";
+      tempUnit = "C";
       pressureUnit = "hPa";
       windUnit = "m/s";
     }
@@ -1018,7 +1033,7 @@ void processWeatherJson(const char *response)
     }
     else
     {
-      tempUnit = "C";
+      tempUnit = "F";
       pressureUnit = "inHg";
       windUnit = "MPH";
     }
@@ -1446,7 +1461,7 @@ void getRefreshToken()
   }
   else
   {
-    displayHttpRequestFailed();
+    displayCheckSpotifyCredentials();
   }
 
   http.end();
@@ -1732,7 +1747,7 @@ void getSpotifyCurrentTrack()
       processSpotifyJson(jsonCString);
 
     } else {
-      displayHttpRequestFailed();
+      displayCheckSpotifyCredentials();
     } });
 }
 
@@ -2404,7 +2419,7 @@ void handleHttpRequest()
 int failedConnectionAttempts = 0;
 const int MAX_FAILED_ATTEMPTS = 5;
 unsigned long lastWeatherUpdateTime = 0;
-const unsigned long weatherUpdateInterval = 3600000; // 1 hour
+const unsigned long weatherUpdateInterval = 900000; // 15 minutes
 unsigned long lastAlbumArtUpdateTime = 0;
 const unsigned long albumArtUpdateInterval = 5000; // 5000 milliseconds
 
@@ -2575,6 +2590,8 @@ void setup()
   if (weatherConfigExist)
   {
     getWeatherInfo();
+  } else {
+    displayCheckWeatherCredentials();
   }
 
   server.begin();
@@ -2589,7 +2606,7 @@ void loop()
     // Check album art every 5 seconds
     unsigned long currentMillis = millis();
 
-    if (selectedTheme == WEATHER_STATION_THEME)
+    if (selectedTheme == WEATHER_STATION_THEME && weatherConfigExist)
     {
       if (currentMillis - lastWeatherUpdateTime >= weatherUpdateInterval)
       {
