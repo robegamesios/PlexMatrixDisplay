@@ -909,12 +909,12 @@ void drawWeatherIcon(int startx, int starty, int width, int height, const char *
 
 void printTemperature(const char *icon, const char *buf, int x, int y, uint16_t textColor = myWHITE, GFXfont font = Picopixel)
 {
-  // Clear the screen
-  displayRect(x - 32, y - 5, PANEL_WIDTH, 8, 0); // Adjust the clear rectangle based on the new x position
-
   int padding = 2;
   int degreeSymbolWidth = 3;
   int iconWidth = 16;
+
+  // Clear the screen
+  displayRect(0, y - iconWidth + padding, PANEL_WIDTH, iconWidth + padding, myBLACK); // Adjust the clear rectangle based on the new x position
 
   int16_t x1, y1;
   uint16_t w, h;
@@ -1077,7 +1077,7 @@ void processWeatherJson(const char *response)
     cleanCityName.replace("%20", " ");
     std::string uppercasedCityName = toUpperCase(cleanCityName.c_str());
     printCenter(uppercasedCityName.c_str(), 15, myORANGE);
-    
+
     printTemperature(icon, tempString.c_str(), 22, 36, myGREEN, FreeSerifBold9pt7b);
     printCenter(uppercasedDescription.c_str(), 50, myPURPLE);
     lowerScrollingText = extraInfo.c_str();
@@ -2410,7 +2410,7 @@ void handleHttpRequest()
 int failedConnectionAttempts = 0;
 const int MAX_FAILED_ATTEMPTS = 5;
 unsigned long lastWeatherUpdateTime = 0;
-const unsigned long weatherUpdateInterval = 900000; // 15 minutes
+const unsigned long weatherUpdateInterval = 600000; // 10 minutes
 unsigned long lastAlbumArtUpdateTime = 0;
 const unsigned long albumArtUpdateInterval = 5000; // 5000 milliseconds
 
@@ -2581,7 +2581,9 @@ void setup()
   if (weatherConfigExist)
   {
     getWeatherInfo();
-  } else {
+  }
+  else
+  {
     displayCheckWeatherCredentials();
   }
 
