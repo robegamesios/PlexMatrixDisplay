@@ -80,7 +80,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
 <div class="card">
     <h2 class="card-title">Music Visualizer</h2>
     <p class="card-description">Shows audio spectrum that syncs with your music.</p>
-    <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/main/thumbnails/musicVisualizer.jpg?raw=true" alt="Music Visualizer">
+    <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/main/thumbnails/websiteIcons/musicVisualizer.jpg?raw=true" alt="Music Visualizer">
     <br><br>
     <select id="optionSelect" name='option'>
     <option value='13' title='Select Visualizer Pattern'>Select Visualizer Pattern</option>
@@ -103,7 +103,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
 <div class="card">
     <h2 class="card-title">PlexAmp Album Art</h2>
     <p class="card-description">Displays PlexAmp Album Art.</p>
-    <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/main/thumbnails/plexampIcon.png?raw=true" alt="PlexAmp Album Art">
+    <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/main/thumbnails/websiteIcons/plexampIcon.png?raw=true" alt="PlexAmp Album Art">
     <label for="serverAddress">Server Address:</label>
     <input type="text" id="serverAddress" name="serverAddress"><br><br>
      <label for="serverPort">Server Port Number:</label>
@@ -116,7 +116,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
 <div class="card">
     <h2 class="card-title">Spotify Album Art</h2>
     <p class="card-description">Displays Spotify Album Art.<br><br></p>
-    <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/main/thumbnails/spotifyIcon.jpeg?raw=true" alt="Spotify Album Art">
+    <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/main/thumbnails/websiteIcons/spotifyIcon.jpeg?raw=true" alt="Spotify Album Art">
     <label for="clientId">Client Id:</label>
     <input type="text" id="clientId" name="clientId"><br><br>
     <label for="clientSecret">Client Secret:</label>
@@ -130,7 +130,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
 <div class="card">
     <h2 class="card-title">Weather Station</h2>
     <p class="card-description">Displays weather info from openweather.org.</p>
-    <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/main/thumbnails/weatherIcon.jpg?raw=true" alt="Weather Station">
+    <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/main/thumbnails/websiteIcons/weatherIcon.jpg?raw=true" alt="Weather Station">
     <label for="cityName">City Name: e.g Palo Alto</label>
     <input type="text" id="cityName" name="cityName"><br><br>
      <label for="countryCode">Country Code: e.g. US</label>
