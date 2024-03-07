@@ -1,3 +1,5 @@
+#ifdef AV
+
 /********************************************************************************************************************************************************
  *                                                                                                                                                       *
  *  Project:         FFT Spectrum Analyzer                                                                                                               *
@@ -509,3 +511,5 @@ void TriPeak(int band)
       dma_display->drawPixelRGB888(x, peakHeight, TriBar_RGB_Middle); // yellow
   }
 }
+
+#endif

@@ -3,9 +3,8 @@
 #define PLEX_ALBUM_ART_THEME 200
 #define SPOTIFY_ALBUM_ART_THEME 201
 #define GIF_ART_THEME 210
-#define CLOCKWISE_CANVAS_THEME 0
-#define CLOCKWISE_MARIO_THEME 1
-#define CLOCKWISE_PACMAN_THEME 2
+
+// #define AV  //Uncomment to use Audio Visualizer
 
 // ******************************************* BEGIN MATRIX DISPLAY *******************************************
 #pragma region MATRIX_DISPLAY
@@ -547,7 +546,10 @@ void deleteAlbumArt()
 
 void displayNoTrackPlaying()
 {
-  // Serial.println("No track is currently playing.");
+#ifdef DEBUG
+  Serial.println("No track is currently playing.");
+#endif
+
   resetAlbumArtVariables();
   clearImage();
   printCenter("NO TRACK IS", 20);
@@ -557,7 +559,10 @@ void displayNoTrackPlaying()
 
 void displayCheckWeatherCredentials()
 {
+#ifdef DEBUG
   Serial.println("Check Weather credentials");
+#endif
+
   resetAlbumArtVariables();
   clearImage();
   printCenter("CHECK WEATHER", 30);
@@ -566,7 +571,10 @@ void displayCheckWeatherCredentials()
 
 void displayCheckSpotifyCredentials()
 {
+#ifdef DEBUG
   Serial.println("Check Spotify credentials");
+#endif
+
   resetAlbumArtVariables();
   clearImage();
   printCenter("CHECK SPOTIFY", 30);
@@ -759,13 +767,15 @@ String getLocalTime()
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo))
   {
+#ifdef DEBUG
     Serial.println("Failed to obtain time");
+#endif
+
     return "";
   }
   char buffer[20];                                                // Create a buffer to hold the formatted time
   strftime(buffer, sizeof(buffer), "%I:%M %P  %b %d", &timeinfo); // Format time into buffer
   String localTime = String(buffer);                              // Convert buffer to String
-  // Serial.println(localTime);                                      // Print the time
   return localTime;
 }
 
@@ -803,18 +813,14 @@ void fetchWeatherConfigFile()
   if (SPIFFS.exists(WEATHER_CONFIG_JSON))
   {
     // file exists, reading and loading
-    Serial.println("reading config file");
     File configFile = SPIFFS.open(WEATHER_CONFIG_JSON, "r");
     if (configFile)
     {
-      Serial.println("opened config file");
       StaticJsonDocument<512> json;
       DeserializationError error = deserializeJson(json, configFile);
       serializeJsonPretty(json, Serial);
       if (!error)
       {
-        // Serial.println("\nparsed json");
-
         if (json.containsKey(WM_WEATHER_CITY_NAME_LABEL) && json.containsKey(WM_WEATHER_COUNTRY_CODE_LABEL) && json.containsKey(WM_WEATHER_API_KEY_LABEL) && json.containsKey(WM_WEATHER_UNIT_LABEL))
         {
           const char *tempCityName = json[WM_WEATHER_CITY_NAME_LABEL];
@@ -827,9 +833,13 @@ void fetchWeatherConfigFile()
           strlcpy(weatherCountryCode, tempCountryCode, sizeof(weatherCountryCode));
           strlcpy(weatherApikey, tempApiKey, sizeof(weatherApikey));
           strlcpy(weatherUnit, tempUnit, sizeof(weatherUnit));
-          // Serial.println("Weather City Name: " + String(weatherCityName));
-          // Serial.println("Weather Country Code: " + String(weatherCountryCode));
-          // Serial.println("Weather API Key: " + String(weatherApikey));
+
+#ifdef DEBUG
+          Serial.println("Weather City Name: " + String(weatherCityName));
+          Serial.println("Weather Country Code: " + String(weatherCountryCode));
+          Serial.println("Weather API Key: " + String(weatherApikey));
+#endif
+
           weatherConfigExist = true;
         }
         else
@@ -883,13 +893,21 @@ void saveWeatherConfig(const char *cityName, const char *countryCode, const char
 void drawWeatherIcon(int startx, int starty, int width, int height, const char *icon, bool enlarged)
 {
   // Perform switch-case based on the entire string
-  if (strcmp(icon, "01d") == 0 || strcmp(icon, "01n") == 0)
+  if (strcmp(icon, "01d") == 0)
   {
     drawBitmap(startx, starty, width, height, sun_24x24, enlarged);
   }
-  else if (strcmp(icon, "02d") == 0 || strcmp(icon, "02n") == 0)
+  else if (strcmp(icon, "01n") == 0)
+  {
+    drawBitmap(startx, starty, width, height, moon_24x24, enlarged);
+  }
+  else if (strcmp(icon, "02d") == 0)
   {
     drawBitmap(startx, starty, width, height, fewClouds_24x24, enlarged);
+  }
+  else if (strcmp(icon, "02n") == 0)
+  {
+    drawBitmap(startx, starty, width, height, fewCloudsNight_24x24, enlarged);
   }
   else if (strcmp(icon, "03d") == 0 || strcmp(icon, "03n") == 0)
   {
@@ -899,9 +917,13 @@ void drawWeatherIcon(int startx, int starty, int width, int height, const char *
   {
     drawBitmap(startx, starty, 24, 24, brokenClouds_24x24, enlarged);
   }
-  else if (strcmp(icon, "09d") == 0 || strcmp(icon, "09n") == 0)
+  else if (strcmp(icon, "09d") == 0)
   {
     drawBitmap(startx, starty, width, height, showers_24x24, enlarged);
+  }
+  else if (strcmp(icon, "09n") == 0)
+  {
+    drawBitmap(startx, starty, width, height, showersNight_24x24, enlarged);
   }
   else if (strcmp(icon, "10d") == 0 || strcmp(icon, "10n") == 0)
   {
@@ -1130,7 +1152,11 @@ void getWeatherInfo()
           {
     if (httpCode == HTTP_CODE_OK) {
       String httpResponse = response;
-      // Serial.println(httpResponse);
+
+#ifdef DEBUG
+      Serial.println(httpResponse);
+#endif
+
       const char *jsonCString = httpResponse.c_str();
       processWeatherJson(jsonCString);
     } else {
@@ -1192,8 +1218,6 @@ void fetchPlexConfigFile()
       serializeJsonPretty(json, Serial);
       if (!error)
       {
-        // Serial.println("\nparsed json");
-
         if (json.containsKey(WM_PLEX_SERVER_IP_LABEL) && json.containsKey(WM_PLEX_SERVER_PORT_LABEL) && json.containsKey(WM_PLEX_SERVER_TOKEN_LABEL))
         {
           const char *tempPlexServerIp = json[WM_PLEX_SERVER_IP_LABEL];
@@ -1204,9 +1228,12 @@ void fetchPlexConfigFile()
           strlcpy(plexServerIp, tempPlexServerIp, sizeof(plexServerIp));
           strlcpy(plexServerPort, tempPlexServerPort, sizeof(plexServerPort));
           strlcpy(plexServerToken, tempPlexServerToken, sizeof(plexServerToken));
+
+#ifdef DEBUG
           Serial.println("Plex Server IP: " + String(plexServerIp));
           Serial.println("Plex Server Port: " + String(plexServerPort));
           Serial.println("Plex Server Token: " + String(plexServerToken));
+#endif
         }
         else
         {
@@ -1334,9 +1361,11 @@ void processPlexResponse(const String &payload)
           // Display or use the last track title, artist name, and thumbnail URL as needed
           if (!trackTitle.isEmpty() && !artistName.isEmpty() && !coverArtURL.isEmpty())
           {
-            // Serial.println("Last Track Title: " + trackTitle);
-            // Serial.println("Artist Name: " + artistName);
-            // Serial.println("Last Thumbnail URL: " + coverArtURL);
+#ifdef DEBUG
+            Serial.println("Last Track Title: " + trackTitle);
+            Serial.println("Artist Name: " + artistName);
+            Serial.println("Last Thumbnail URL: " + coverArtURL);
+#endif
 
             String cleanTrackTitle = decodeHtmlEntities(trackTitle);
             char trackTitleCharArray[cleanTrackTitle.length() + 1];
@@ -1364,7 +1393,9 @@ void processPlexResponse(const String &payload)
             }
             else
             {
-              // Serial.println("Album art hasn't changed. Skipping download.");
+#ifdef DEBUG
+              Serial.println("Album art hasn't changed. Skipping download.");
+#endif
 
               // Trigger scrolling song title
               scrollingText = trackTitleCharArray;
@@ -1446,13 +1477,16 @@ void getRefreshToken()
 
   // Send the POST request
   int httpResponseCode = http.POST(postData);
+#ifdef DEBUG
+  Serial.println("HTTP Response code: " + String(httpResponseCode));
+#endif
 
   if (httpResponseCode == HTTP_CODE_OK)
   {
     String response = http.getString();
-    // Serial.println("HTTP Response code: " + String(httpResponseCode));
-    // Serial.println("Response payload: " + response);
-
+#ifdef DEBUG
+    Serial.println("Response payload: " + response);
+#endif
     // Extract the refresh_token using index-based parsing
     const char *responseChar = response.c_str();
     const char *refreshTokenStart = strstr(responseChar, "\"access_token\"");
@@ -1466,7 +1500,9 @@ void getRefreshToken()
       {
         strncpy(refreshedAccessToken, refreshTokenStart, refreshTokenEnd - refreshTokenStart);
         refreshedAccessToken[refreshTokenEnd - refreshTokenStart] = '\0'; // Null-terminate the string
-        // Serial.println("Refreshed Access Token: " + String(refreshedAccessToken));
+#ifdef DEBUG
+        Serial.println("Refreshed Access Token: " + String(refreshedAccessToken));
+#endif
         clearImage();
       }
       else
@@ -1502,8 +1538,6 @@ void fetchSpotifyConfigFile()
       serializeJsonPretty(json, Serial);
       if (!error)
       {
-        // Serial.println("\nparsed json");
-
         if (json.containsKey(WM_SPOTIFY_CLIENT_ID_LABEL) && json.containsKey(WM_SPOTIFY_CLIENT_SECRET_LABEL) && json.containsKey(WM_SPOTIFY_REFRESH_TOKEN_LABEL))
         {
           const char *tempSpotifyClientId = json[WM_SPOTIFY_CLIENT_ID_LABEL];
@@ -1514,9 +1548,11 @@ void fetchSpotifyConfigFile()
           strlcpy(spotifyClientId, tempSpotifyClientId, sizeof(spotifyClientId));
           strlcpy(spotifyClientSecret, tempSpotifyClientSecret, sizeof(spotifyClientSecret));
           strlcpy(spotifyRefreshToken, tempSpotifyRefreshToken, sizeof(spotifyRefreshToken));
-          // Serial.println("Spotify Client ID: " + String(spotifyClientId));
-          // Serial.println("Spotify Client Secret: " + String(spotifyClientSecret));
-          // Serial.println("Spotify Refresh Token: " + String(spotifyRefreshToken));
+#ifdef DEBUG
+          Serial.println("Spotify Client ID: " + String(spotifyClientId));
+          Serial.println("Spotify Client Secret: " + String(spotifyClientSecret));
+          Serial.println("Spotify Refresh Token: " + String(spotifyRefreshToken));
+#endif
         }
         else
         {
@@ -1568,7 +1604,9 @@ void downloadSpotifyAlbumArt(String imageUrl)
 {
   if (imageUrl == lastAlbumArtURL)
   {
-    // Serial.println("Album art hasn't changed. Skipping download");
+#ifdef DEBUG
+    Serial.println("Album art hasn't changed. Skipping download");
+#endif
     return;
   }
   deleteAlbumArt();
@@ -1663,7 +1701,9 @@ void processSpotifyJson(const char *response)
     {
       strncpy(songName, songNameStart, songNameEnd - songNameStart);
       songName[songNameEnd - songNameStart] = '\0'; // Null-terminate the string
-      // Serial.println("Song Name: " + String(songName));
+#ifdef DEBUG
+      Serial.println("Song Name: " + String(songName));
+#endif
       scrollingText = String(songName);
     }
     else
@@ -1684,7 +1724,6 @@ void processSpotifyJson(const char *response)
   {
     strncpy(artistName, artistNameStart, artistNameEnd - artistNameStart);
     artistName[artistNameEnd - artistNameStart] = '\0'; // Null-terminate the string
-    // Serial.println("Artist Name: " + String(artistName));
     lowerScrollingText = String(artistName);
   }
   else
@@ -1719,7 +1758,9 @@ void processSpotifyJson(const char *response)
         {
           strncpy(spotifyImageUrl, lastImageUrlValueStart, lastImageUrlEnd - lastImageUrlValueStart);
           spotifyImageUrl[lastImageUrlEnd - lastImageUrlValueStart] = '\0'; // Null-terminate the string
-          // Serial.println("Image URL: " + String(imageUrl));
+#ifdef DEBUG
+          Serial.println("Image URL: " + String(imageUrl));
+#endif
         }
         else
         {
@@ -1776,6 +1817,8 @@ void getSpotifyCurrentTrack()
 
 // ******************************************* BEGIN AUDIO VISUALIZER *****************************************
 #pragma region AUDIO_VISUALIZER
+
+#ifdef AV
 
 #include <FastLED_NeoMatrix.h>
 #include <arduinoFFT.h>
@@ -2186,6 +2229,8 @@ void updateAudioVisualizerSettings(int pattern)
   }
 }
 
+#endif
+
 #pragma endregion
 // ******************************************* END AUDIO VISUALIZER *******************************************
 
@@ -2250,7 +2295,9 @@ void processRequest(WiFiClient client, String method, String path, String key, S
     if (key == PREF_AV_PATTERN)
     {
       client.println("HTTP/1.0 204 No Content");
+#ifdef AV
       updateAudioVisualizerSettings(value.toInt());
+#endif
       return;
     }
 
@@ -2316,11 +2363,11 @@ void processRequest(WiFiClient client, String method, String path, String key, S
       String serverPort = serverPortAndToken.substring(0, thirdDelimiterIndex);
       String authToken = serverPortAndToken.substring(thirdDelimiterIndex + 1);
 
-      // Print the extracted values (for debugging)
-      // Serial.println("Server Address: " + serverAddress);
-      // Serial.println("Server Port: " + serverPort);
-      // Serial.println("Auth Token: " + authToken);
-
+#ifdef DEBUG
+      Serial.println("Server Address: " + serverAddress);
+      Serial.println("Server Port: " + serverPort);
+      Serial.println("Auth Token: " + authToken);
+#endif
       // Check if parameters are empty and provide default values if necessary
       serverAddress = (serverAddress.length() == 0) ? plexServerIp : serverAddress;
       serverPort = (serverPort.length() == 0) ? plexServerPort : serverPort;
@@ -2356,11 +2403,11 @@ void processRequest(WiFiClient client, String method, String path, String key, S
       String clientSecret = clientSecretAndRefreshToken.substring(0, thirdDelimiterIndex);
       String refreshToken = clientSecretAndRefreshToken.substring(thirdDelimiterIndex + 1);
 
-      // Print the extracted values (for debugging)
-      // Serial.println("Spotify Client Id: " + clientId);
-      // Serial.println("Spotify Client secret: " + clientSecret);
-      // Serial.println("Spotify Refresh Token: " + refreshToken);
-
+#ifdef DEBUG
+      Serial.println("Spotify Client Id: " + clientId);
+      Serial.println("Spotify Client secret: " + clientSecret);
+      Serial.println("Spotify Refresh Token: " + refreshToken);
+#endif
       // Check if parameters are empty and provide default values if necessary
       clientId = (clientId.length() == 0) ? spotifyClientId : clientId;
       clientSecret = (clientSecret.length() == 0) ? spotifyClientSecret : clientSecret;
@@ -2446,13 +2493,13 @@ const unsigned long albumArtUpdateInterval = 5000; // 5000 milliseconds
 void update_progress(int cur, int total)
 {
   // Clear screen
-  displayRect(0, 40, PANEL_WIDTH, 10, 0);
+  displayRect(0, 40, PANEL_WIDTH, 10, myBLACK);
 
   // Display progress
   float progress = cur * 100.0 / total;
   char buffer[30];
   sprintf(buffer, "%.0f%%", progress);
-  printCenter(buffer, 40);
+  printCenter(buffer, 40, myGREEN);
 }
 
 void setup()
@@ -2520,9 +2567,9 @@ void setup()
     fetchSpotifyConfigFile();
     getRefreshToken();
   }
-  else if (selectedTheme == GIF_ART_THEME)
+  else if (selectedTheme == AUDIO_VISUALIZER_THEME)
   {
-    Serial.print("will update firmware to gifArtFirmware");
+    Serial.print("will update firmware to TuneFrameAV_Firmware");
     // update firmware to canvas
     WiFiClientSecure client;
     client.setInsecure();
@@ -2530,58 +2577,15 @@ void setup()
     // Reading data over SSL may be slow, use an adequate timeout
     client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
 
-    // Display IP address
-    IPAddress ipAddress = WiFi.localIP();
-    char ipAddressString[16];
-    sprintf(ipAddressString, "%s", ipAddress.toString().c_str());
-    printCenter(ipAddressString, 10);
+    printCenter(ipAddressString, 10, myBLUE);
 
     // Display Loading text
     const char *loadingText = "Loading..";
-    printCenter(loadingText, 20);
+    printCenter(loadingText, 20, myORANGE);
 
     httpUpdate.onProgress(update_progress);
 
-    t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/clock-club/main/binFiles/GifArtFirmware.bin");
-
-    switch (ret)
-    {
-    case HTTP_UPDATE_FAILED:
-      Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
-      break;
-
-    case HTTP_UPDATE_NO_UPDATES:
-      Serial.println("HTTP_UPDATE_NO_UPDATES");
-      break;
-
-    case HTTP_UPDATE_OK:
-      Serial.println("HTTP_UPDATE_OK");
-      break;
-    }
-    return;
-  }
-  else if (selectedTheme == CLOCKWISE_CANVAS_THEME || selectedTheme == CLOCKWISE_MARIO_THEME || selectedTheme == CLOCKWISE_PACMAN_THEME)
-  {
-    Serial.print("will update firmware to clockwiseFirmware");
-    // update firmware to canvas
-    WiFiClientSecure client;
-    client.setInsecure();
-
-    // Reading data over SSL may be slow, use an adequate timeout
-    client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
-
-    IPAddress ipAddress = WiFi.localIP();
-    char ipAddressString[16];
-    sprintf(ipAddressString, "%s", ipAddress.toString().c_str());
-    printCenter(ipAddressString, 10);
-
-    // Display Loading text
-    const char *loadingText = "Loading..";
-    printCenter(loadingText, 20);
-
-    httpUpdate.onProgress(update_progress);
-
-    t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/clock-club/main/binFiles/ClockwiseFirmware.bin");
+    t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/clock-club/main/binFiles/TuneFrameAV_Firmware.bin");
 
     switch (ret)
     {
@@ -2601,8 +2605,10 @@ void setup()
   }
   else
   {
+#ifdef AV
     // Setup audio visualizer
     setupI2S();
+#endif
   }
 
   // get the weather
@@ -2658,8 +2664,10 @@ void loop()
     }
     else
     {
+#ifdef AV
       // Default to audio visualizer
       loopAudioVisualizer();
+#endif
     }
 
     if ((selectedTheme == AUDIO_VISUALIZER_THEME && isScreenSaverMode && weatherConfigExist) || selectedTheme != AUDIO_VISUALIZER_THEME)
