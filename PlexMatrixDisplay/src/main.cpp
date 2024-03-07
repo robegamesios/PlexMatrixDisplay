@@ -4,7 +4,7 @@
 #define SPOTIFY_ALBUM_ART_THEME 201
 #define GIF_ART_THEME 210
 
-// #define AV  //Uncomment to use Audio Visualizer
+// #define AV // Uncomment to use Audio Visualizer
 
 // ******************************************* BEGIN MATRIX DISPLAY *******************************************
 #pragma region MATRIX_DISPLAY
@@ -100,7 +100,7 @@ void displayRect(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color)
 }
 
 // Image Related
-void clearImage()
+void clearScreen()
 {
   dma_display->fillScreen(myBLACK);
 }
@@ -551,7 +551,7 @@ void displayNoTrackPlaying()
 #endif
 
   resetAlbumArtVariables();
-  clearImage();
+  clearScreen();
   printCenter("NO TRACK IS", 20);
   printCenter("CURRENTLY", 30);
   printCenter("PLAYING", 40);
@@ -564,7 +564,7 @@ void displayCheckWeatherCredentials()
 #endif
 
   resetAlbumArtVariables();
-  clearImage();
+  clearScreen();
   printCenter("CHECK WEATHER", 30);
   printCenter("CREDENTIALS", 40);
 }
@@ -576,7 +576,7 @@ void displayCheckSpotifyCredentials()
 #endif
 
   resetAlbumArtVariables();
-  clearImage();
+  clearScreen();
   printCenter("CHECK SPOTIFY", 30);
   printCenter("CREDENTIALS", 40);
 }
@@ -662,7 +662,7 @@ std::vector<const char *> _menu = {"wifi", "exit"};
 
 void restartDevice()
 {
-  clearImage();
+  clearScreen();
   printCenter("RESTARTING..", 30);
   delay(3000);
   ESP.restart();
@@ -1174,7 +1174,7 @@ void displayScreenSaver()
     {
       isScreenSaverMode = true;
       resetAlbumArtVariables();
-      clearImage();
+      clearScreen();
       getWeatherInfo();
     }
   }
@@ -1193,6 +1193,8 @@ void displayScreenSaver()
 
 // ******************************************* BEGIN PLEX ALBUM ART *******************************************
 #pragma region PLEX_ALBUM_ART
+
+#ifndef AV
 
 #define WM_PLEX_SERVER_IP_LABEL "plexServerIp"
 #define WM_PLEX_SERVER_PORT_LABEL "plexServerPort"
@@ -1303,7 +1305,7 @@ void downloadPlexAlbumArt(const char *relativeUrl, const char *trackTitle, const
       if (SPIFFS.exists(ALBUM_ART)) {
         Serial.println("Image downloaded and saved successfully");
         // Update the last downloaded album art URL using the captured parameter
-        clearImage();
+        clearScreen();
         lastAlbumArtURL = imageUrl;
         drawImagefromFile(ALBUM_ART, 8);
         scrollingText = trackTitle;
@@ -1436,11 +1438,15 @@ void getPlexCurrentTrack()
     } });
 }
 
+#endif
+
 #pragma endregion
 // ******************************************* END PLEX ALBUM ART *********************************************
 
 // ******************************************* BEGIN SPOTIFY ALBUM ART ****************************************
 #pragma region SPOTIFY_ALBUM_ART
+
+#ifndef AV
 
 #include <base64.h>
 
@@ -1503,7 +1509,7 @@ void getRefreshToken()
 #ifdef DEBUG
         Serial.println("Refreshed Access Token: " + String(refreshedAccessToken));
 #endif
-        clearImage();
+        clearScreen();
       }
       else
       {
@@ -1811,6 +1817,8 @@ void getSpotifyCurrentTrack()
       displayCheckSpotifyCredentials();
     } });
 }
+
+#endif
 
 #pragma endregion
 // ******************************************* END SPOTIFY ALBUM ART ******************************************
@@ -2234,12 +2242,9 @@ void updateAudioVisualizerSettings(int pattern)
 #pragma endregion
 // ******************************************* END AUDIO VISUALIZER *******************************************
 
-// ******************************************* BEGIN WEB SERVER ***********************************************
+// ******************************************* BEGIN WIFI SERVER ***********************************************
 #pragma region WEBSERVER
 
-#include <WebServer.h>
-#include <ESPmDNS.h>
-#include <Update.h>
 #include "TuneFrameWebPage.h"
 
 WiFiServer server(80);
@@ -2285,28 +2290,11 @@ void processRequest(WiFiClient client, String method, String path, String key, S
         client.println("HTTP/1.0 204 No Content");
         savePreferences();
         currentlyRunningTheme = selectedTheme;
-        clearImage();
+        clearScreen();
 
         force_restart = true;
         return;
       }
-    }
-
-    if (key == PREF_AV_PATTERN)
-    {
-      client.println("HTTP/1.0 204 No Content");
-#ifdef AV
-      updateAudioVisualizerSettings(value.toInt());
-#endif
-      return;
-    }
-
-    if (key == PREF_GIF_ART_NAME)
-    {
-      String payload = value;
-      Serial.println("Received payload: " + payload);
-      client.println("HTTP/1.0 204 No Content");
-      return;
     }
 
     if (key == PREF_WEATHER_STATION_CREDENTIALS)
@@ -2342,12 +2330,28 @@ void processRequest(WiFiClient client, String method, String path, String key, S
       client.println("HTTP/1.0 204 No Content");
       savePreferences();
       currentlyRunningTheme = selectedTheme;
-      clearImage();
+      clearScreen();
 
       force_restart = true;
       return;
     }
 
+    if (key == PREF_GIF_ART_NAME)
+    {
+      String payload = value;
+      Serial.println("Received payload: " + payload);
+      client.println("HTTP/1.0 204 No Content");
+      return;
+    }
+
+#ifdef AV
+    if (key == PREF_AV_PATTERN)
+    {
+      client.println("HTTP/1.0 204 No Content");
+      updateAudioVisualizerSettings(value.toInt());
+      return;
+    }
+#else
     if (key == PREF_PLEX_CREDENTIALS)
     {
       String payload = value;
@@ -2382,7 +2386,7 @@ void processRequest(WiFiClient client, String method, String path, String key, S
       client.println("HTTP/1.0 204 No Content");
       savePreferences();
       currentlyRunningTheme = selectedTheme;
-      clearImage();
+      clearScreen();
 
       force_restart = true;
       return;
@@ -2422,11 +2426,12 @@ void processRequest(WiFiClient client, String method, String path, String key, S
       client.println("HTTP/1.0 204 No Content");
       savePreferences();
       currentlyRunningTheme = selectedTheme;
-      clearImage();
+      clearScreen();
 
       force_restart = true;
       return;
     }
+#endif
   }
 }
 
@@ -2476,7 +2481,7 @@ void handleHttpRequest()
 }
 
 #pragma endregion
-// ******************************************* END WEB SERVER *************************************************
+// ******************************************* END WIFI SERVER *************************************************
 
 // ******************************************* BEGIN MAIN *****************************************************
 #pragma region MAIN
@@ -2555,9 +2560,52 @@ void setup()
   printCenter("Connected to WiFi.", 50, myGREEN);
   delay(5000);
 
-  clearImage();
+  clearScreen();
   Serial.println("\r\nInitialisation done.");
 
+#ifdef AV
+  if (selectedTheme == PLEX_ALBUM_ART_THEME || selectedTheme == SPOTIFY_ALBUM_ART_THEME)
+  {
+    Serial.print("will update firmware to TuneFrameAlbumArt_Firmware");
+    // update firmware to canvas
+    WiFiClientSecure client;
+    client.setInsecure();
+
+    // Reading data over SSL may be slow, use an adequate timeout
+    client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
+
+    printCenter(ipAddressString, 10, myBLUE);
+
+    // Display Loading text
+    const char *loadingText = "Loading..";
+    printCenter(loadingText, 20, myORANGE);
+
+    httpUpdate.onProgress(update_progress);
+
+    t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/TUNEFRAME/blob/main/binFiles/TuneFrameAlbumArt_Firmware.bin");
+
+    switch (ret)
+    {
+    case HTTP_UPDATE_FAILED:
+      Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+      break;
+
+    case HTTP_UPDATE_NO_UPDATES:
+      Serial.println("HTTP_UPDATE_NO_UPDATES");
+      break;
+
+    case HTTP_UPDATE_OK:
+      Serial.println("HTTP_UPDATE_OK");
+      break;
+    }
+    return;
+  }
+  else
+  {
+    // Setup audio visualizer
+    setupI2S();
+  }
+#else
   if (selectedTheme == PLEX_ALBUM_ART_THEME)
   {
     fetchPlexConfigFile();
@@ -2585,7 +2633,7 @@ void setup()
 
     httpUpdate.onProgress(update_progress);
 
-    t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/clock-club/main/binFiles/TuneFrameAV_Firmware.bin");
+    t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/TUNEFRAME/blob/main/binFiles/TuneFrameAV_Firmware.bin");
 
     switch (ret)
     {
@@ -2603,13 +2651,7 @@ void setup()
     }
     return;
   }
-  else
-  {
-#ifdef AV
-    // Setup audio visualizer
-    setupI2S();
 #endif
-  }
 
   // get the weather
   fetchWeatherConfigFile();
@@ -2631,6 +2673,16 @@ void loop()
   {
     handleHttpRequest();
 
+#ifdef AV
+    // Default to audio visualizer
+    loopAudioVisualizer();
+
+    if (isScreenSaverMode && weatherConfigExist)
+    {
+      printScrolling(scrollingText.c_str(), 5, myBLUE);
+      printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
+    }
+#else
     // Check album art every 5 seconds
     unsigned long currentMillis = millis();
 
@@ -2662,19 +2714,10 @@ void loop()
         }
       }
     }
-    else
-    {
-#ifdef AV
-      // Default to audio visualizer
-      loopAudioVisualizer();
-#endif
-    }
 
-    if ((selectedTheme == AUDIO_VISUALIZER_THEME && isScreenSaverMode && weatherConfigExist) || selectedTheme != AUDIO_VISUALIZER_THEME)
-    {
-      printScrolling(scrollingText.c_str(), 5, myBLUE);
-      printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
-    }
+    printScrolling(scrollingText.c_str(), 5, myBLUE);
+    printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
+#endif
   }
 }
 
