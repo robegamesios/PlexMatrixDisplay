@@ -1080,7 +1080,7 @@ void processWeatherJson(const char *response)
     float humidity = extractFloatValue(response, "\"humidity\"");
     // printf("Humidity: %.2f\n", humidity);
     int humidityInt = (int)humidity;
-    std::string humidityString = "H: " + std::to_string(humidityInt) + "%";
+    std::string humidityString = "RH: " + std::to_string(humidityInt) + "%";
 
     float wind_direction = extractFloatValue(response, "\"deg\"");
     // printf("Wind direction: %.2f\n", wind_direction);
