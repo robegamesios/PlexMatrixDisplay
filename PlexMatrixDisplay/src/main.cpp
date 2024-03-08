@@ -2557,7 +2557,7 @@ void update_progress(int cur, int total)
   float progress = cur * 100.0 / total;
   char buffer[30];
   sprintf(buffer, "%.0f%%", progress);
-  printCenter(buffer, 40, myGREEN, FreeSerifBold9pt7b);
+  printCenter(buffer, 50, myGREEN, FreeSerifBold9pt7b);
 }
 
 void setup()
