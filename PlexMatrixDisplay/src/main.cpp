@@ -781,7 +781,7 @@ String getLocalTime()
   return localTime;
 }
 
-void displayDateAndTime()
+void getDateAndTime()
 {
   String localTime = getLocalTime();
   scrollingText = localTime;
@@ -1136,7 +1136,7 @@ void processWeatherJson(const char *response)
     lowerScrollingText = extraInfo.c_str();
 
     delay(500);
-    displayDateAndTime();
+    getDateAndTime();
   }
 }
 
@@ -1171,7 +1171,7 @@ void displayScreenSaver()
 {
   if (weatherConfigExist)
   {
-    displayDateAndTime();
+    getDateAndTime();
     if (!isScreenSaverMode)
     {
       isScreenSaverMode = true;
@@ -1416,7 +1416,7 @@ void processPlexResponse(const String &payload)
   }
   else if (lastAlbumArtURL != "")
   {
-    displayDateAndTime();
+    getDateAndTime();
     displayMusicPaused();
   }
   else
@@ -1434,7 +1434,7 @@ void getPlexCurrentTrack()
   httpGet(apiUrl, headerKey, headerValue, [](int httpCode, const String &response)
           {
 #ifdef DEBUG
-            Serial.println("http code: " + httpCode);
+            Serial.println("plex http code: " + httpCode);
 #endif
     if (httpCode == HTTP_CODE_OK) {
       processPlexResponse(response);
@@ -1682,7 +1682,7 @@ void processSpotifyJson(const char *response)
       else if (strncmp(isPlayingStart, "false", 5) == 0)
       {
         // music player is paused.
-        displayDateAndTime();
+        getDateAndTime();
         displayMusicPaused();
         return;
       }
@@ -2501,7 +2501,9 @@ void handleHttpRequest()
 int failedConnectionAttempts = 0;
 const int MAX_FAILED_ATTEMPTS = 5;
 unsigned long lastWeatherUpdateTime = 0;
+unsigned long lastClockUpdateTime = 0;
 const unsigned long weatherUpdateInterval = 600000; // 10 minutes
+const unsigned long clockUpdateInterval = 1000; // 10 minutes
 unsigned long lastAlbumArtUpdateTime = 0;
 const unsigned long albumArtUpdateInterval = 5000; // 5000 milliseconds
 
@@ -2691,6 +2693,13 @@ void loop()
 
     if (selectedTheme == WEATHER_STATION_THEME && weatherConfigExist)
     {
+
+      if (currentMillis - lastClockUpdateTime >= clockUpdateInterval)
+      {
+        lastClockUpdateTime = currentMillis;
+        getDateAndTime();
+      }
+
       if (currentMillis - lastWeatherUpdateTime >= weatherUpdateInterval)
       {
         lastWeatherUpdateTime = currentMillis;
