@@ -765,7 +765,32 @@ void loadPreferences()
 
 #include "time.h"
 
-String getLocalTime()
+char weatherUnit[2] = "0";
+
+String getLocalTimeFromUnix(float unixTime)
+{
+  time_t unixTime_t = static_cast<time_t>(unixTime); // Convert int to time_t
+  struct tm *timeinfo = localtime(&unixTime_t);      // Convert time_t to struct tm
+  if (timeinfo == nullptr)
+  {
+    return ""; // Error handling if conversion fails
+  }
+
+  char buffer[20];
+
+  if (strcmp(weatherUnit, "0") == 0) // imperial
+  {
+    strftime(buffer, sizeof(buffer), "%l:%M%P", timeinfo);
+  }
+  else
+  {
+    strftime(buffer, sizeof(buffer), "%H:%M", timeinfo);
+  }
+  String localTime = String(buffer);
+  return localTime;
+}
+
+String getLocalTimeAndDate()
 {
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo))
@@ -776,15 +801,24 @@ String getLocalTime()
 
     return "";
   }
-  char buffer[20];                                                // Create a buffer to hold the formatted time
-  strftime(buffer, sizeof(buffer), "%I:%M %P  %b %d", &timeinfo); // Format time into buffer
-  String localTime = String(buffer);                              // Convert buffer to String
+  char buffer[20];
+
+  if (strcmp(weatherUnit, "0") == 0) // imperial
+  {
+    strftime(buffer, sizeof(buffer), "%l:%M%P  %b %d", &timeinfo);
+  }
+  else
+  {
+    strftime(buffer, sizeof(buffer), "%H:%M  %b %d", &timeinfo);
+  }
+
+  String localTime = String(buffer);
   return localTime;
 }
 
 void getDateAndTime()
 {
-  String localTime = getLocalTime();
+  String localTime = getLocalTimeAndDate();
   scrollingText = localTime;
 }
 
@@ -805,7 +839,6 @@ void getDateAndTime()
 char weatherCityName[32];
 char weatherCountryCode[6];
 char weatherApikey[64];
-char weatherUnit[2] = "0";
 
 bool weatherConfigExist = false;
 
@@ -1048,25 +1081,25 @@ void processWeatherJson(const char *response)
   if (selectedTheme == WEATHER_STATION_THEME || isScreenSaverMode)
   {
     std::string tempUnit = "";
-    std::string pressureUnit = "";
+    std::string pressureUnit = "hPa";
     std::string windUnit = "";
 
     if (strcmp(weatherUnit, "1") == 0)
     {
+      // metric
       tempUnit = "C";
-      pressureUnit = "hPa";
       windUnit = "m/s";
     }
     else if (strcmp(weatherUnit, "2") == 0)
     {
+      // standard
       tempUnit = "K";
-      pressureUnit = "inHg";
-      windUnit = "MPH";
+      windUnit = "m/s";
     }
     else
     {
+      // imperial
       tempUnit = "F";
-      pressureUnit = "inHg";
       windUnit = "MPH";
     }
 
@@ -1116,7 +1149,17 @@ void processWeatherJson(const char *response)
     int windSpeedInt = (int)wind_speed;
     std::string windString = "Wind: " + degreesToDirection(windDirectionInt) + " " + std::to_string(windSpeedInt) + windUnit;
 
-    std::string extraInfo = uppercasedDescription + "    " + pressureString + "    " + windString;
+    float sunrise = extractFloatValue(response, "\"sunrise\"");
+    // printf("sunrise: %.2f\n", sunrise);
+    std::string sunriseValue = getLocalTimeFromUnix(sunrise).c_str();
+    std::string sunriseString = "Sunrise: " + sunriseValue;
+
+    float sunset = extractFloatValue(response, "\"sunset\"");
+    // printf("sunset: %.2f\n", sunset);
+    std::string sunsetValue = getLocalTimeFromUnix(sunset).c_str();
+    std::string sunsetString = "Sunset: " + sunsetValue;
+
+    std::string extraInfo = uppercasedDescription + "    " + sunriseString + "    " + sunsetString + "    " + pressureString + "    " + windString;
 
     // display the info to LED Matrix
     String cleanCityName = String(weatherCityName);
