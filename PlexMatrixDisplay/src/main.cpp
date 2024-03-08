@@ -2633,7 +2633,7 @@ void setup()
 
     httpUpdate.onProgress(update_progress);
 
-    t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/TUNEFRAME/blob/main/binFiles/TuneFrameAlbumArt_Firmware.bin");
+    t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/TUNEFRAME/main/binFiles/TuneFrameAlbumArt_Firmware.bin");
 
     switch (ret)
     {
@@ -2682,7 +2682,7 @@ void setup()
 
     httpUpdate.onProgress(update_progress);
 
-    t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/TUNEFRAME/blob/main/binFiles/TuneFrameAV_Firmware.bin");
+    t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/TUNEFRAME/main/binFiles/TuneFrameAV_Firmware.bin");
 
     switch (ret)
     {
