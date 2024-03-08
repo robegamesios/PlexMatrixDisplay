@@ -107,14 +107,15 @@ void clearScreen()
 
 void printCenter(const char *buf, int y, uint16_t textColor = myWHITE, GFXfont font = Picopixel)
 {
-  // Clear the screen
-  displayRect(0, y - 5, PANEL_WIDTH, 8, 0);
-
   int16_t x1, y1;
   uint16_t w, h;
   dma_display->setFont(&font);
   dma_display->getTextBounds(buf, 0, y, &x1, &y1, &w, &h);
-  dma_display->setCursor(32 - (w / 2), y);
+
+  // Clear the screen
+  displayRect(0, y - h - 1, PANEL_WIDTH, h + 4, myBLACK);
+
+  dma_display->setCursor(PANEL_WIDTH / 2 - (w / 2), y);
   dma_display->setTextColor(textColor);
   dma_display->print(buf);
 }
@@ -127,7 +128,7 @@ void printLeft(const char *buf, int x, int y, uint16_t textColor = myWHITE, GFXf
   dma_display->getTextBounds(buf, 0, y, &x1, &y1, &w, &h);
 
   // Clear the screen
-  displayRect(x, y - 5, w, 8, 0);
+  displayRect(x, y - h - 1, w, h + 4, myBLACK);
 
   dma_display->setCursor(x, y);
   dma_display->setTextColor(textColor);
@@ -959,7 +960,7 @@ void printTemperature(const char *icon, const char *buf, int x, int y, uint16_t 
   int iconStartY = y - iconHeight + (iconHeight - h) / 2;
 
   // Clear the screen
-  displayRect(0, iconStartY, PANEL_WIDTH, iconHeight, myBLACK); // Adjust the clear rectangle based on the new x position
+  displayRect(0, iconStartY, PANEL_WIDTH, iconHeight, myBLACK); // clear full width of screen and height of icon
 
   drawWeatherIcon(iconStartX, iconStartY, iconWidth, iconHeight, icon, false);
 
@@ -2497,14 +2498,11 @@ const unsigned long albumArtUpdateInterval = 5000; // 5000 milliseconds
 
 void update_progress(int cur, int total)
 {
-  // Clear screen
-  displayRect(0, 40, PANEL_WIDTH, 10, myBLACK);
-
   // Display progress
   float progress = cur * 100.0 / total;
   char buffer[30];
   sprintf(buffer, "%.0f%%", progress);
-  printCenter(buffer, 40, myGREEN);
+  printCenter(buffer, 40, myGREEN, FreeSerifBold9pt7b);
 }
 
 void setup()
@@ -2575,10 +2573,8 @@ void setup()
     client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
 
     printCenter(ipAddressString, 10, myBLUE);
-
-    // Display Loading text
-    const char *loadingText = "Loading..";
-    printCenter(loadingText, 20, myORANGE);
+    printCenter("Loading..", 20, myORANGE);
+    printCenter("COVER ART", 30, myPURPLE);
 
     httpUpdate.onProgress(update_progress);
 
@@ -2626,10 +2622,8 @@ void setup()
     client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
 
     printCenter(ipAddressString, 10, myBLUE);
-
-    // Display Loading text
-    const char *loadingText = "Loading..";
-    printCenter(loadingText, 20, myORANGE);
+    printCenter("Loading..", 20, myORANGE);
+    printCenter("AUDIO VISUALIZER", 30, myPURPLE);
 
     httpUpdate.onProgress(update_progress);
 
