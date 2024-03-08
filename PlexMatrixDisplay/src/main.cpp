@@ -5,6 +5,7 @@
 #define GIF_ART_THEME 210
 
 // #define AV // Uncomment to use Audio Visualizer
+// #define DEBUG // UNComment to see debug prints
 
 // ******************************************* BEGIN MATRIX DISPLAY *******************************************
 #pragma region MATRIX_DISPLAY
@@ -1155,7 +1156,7 @@ void getWeatherInfo()
       String httpResponse = response;
 
 #ifdef DEBUG
-      Serial.println(httpResponse);
+      Serial.println("http code: " + httpResponse);
 #endif
 
       const char *jsonCString = httpResponse.c_str();
@@ -1432,6 +1433,9 @@ void getPlexCurrentTrack()
 
   httpGet(apiUrl, headerKey, headerValue, [](int httpCode, const String &response)
           {
+#ifdef DEBUG
+            Serial.println("http code: " + httpCode);
+#endif
     if (httpCode == HTTP_CODE_OK) {
       processPlexResponse(response);
     } else {
@@ -1766,7 +1770,7 @@ void processSpotifyJson(const char *response)
           strncpy(spotifyImageUrl, lastImageUrlValueStart, lastImageUrlEnd - lastImageUrlValueStart);
           spotifyImageUrl[lastImageUrlEnd - lastImageUrlValueStart] = '\0'; // Null-terminate the string
 #ifdef DEBUG
-          Serial.println("Image URL: " + String(imageUrl));
+          Serial.println("Image URL: " + String(spotifyImageUrl));
 #endif
         }
         else
@@ -1801,12 +1805,17 @@ void getSpotifyCurrentTrack()
 
   httpGet(endpoint, headerKey, headerValue, [](int httpCode, const String &response)
           {
+#ifdef DEBUG
+            Serial.println("http code: " + httpCode);
+#endif
+
     if (httpCode == HTTP_CODE_UNAUTHORIZED) {
       Serial.println("***** Access token expired");
       restartDevice();
     } else if (httpCode == HTTP_CODE_NO_CONTENT) {
       displayScreenSaver();
     } else if (httpCode == HTTP_CODE_OK) {
+      isScreenSaverMode = false;
       // Escape double quotes
       String escapedResponse = escapeSpecialCharacters(response);
 
@@ -2702,7 +2711,7 @@ void loop()
       {
         lastAlbumArtUpdateTime = currentMillis;
         getSpotifyCurrentTrack();
-        if (strlen(spotifyImageUrl) > 0)
+        if (strlen(spotifyImageUrl) > 0 && !isScreenSaverMode)
         {
           downloadSpotifyAlbumArt(String(spotifyImageUrl));
         }
