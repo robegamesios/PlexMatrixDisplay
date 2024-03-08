@@ -5,6 +5,7 @@
 #define GIF_ART_THEME 210
 
 // #define AV // Uncomment to use Audio Visualizer
+
 // #define DEBUG // UNComment to see debug prints
 
 // ******************************************* BEGIN MATRIX DISPLAY *******************************************
@@ -2503,9 +2504,9 @@ const int MAX_FAILED_ATTEMPTS = 5;
 unsigned long lastWeatherUpdateTime = 0;
 unsigned long lastClockUpdateTime = 0;
 const unsigned long weatherUpdateInterval = 600000; // 10 minutes
-const unsigned long clockUpdateInterval = 1000; // 10 minutes
+const unsigned long clockUpdateInterval = 1000;     // 1 second
 unsigned long lastAlbumArtUpdateTime = 0;
-const unsigned long albumArtUpdateInterval = 5000; // 5000 milliseconds
+const unsigned long albumArtUpdateInterval = 5000; // 5 seconds
 
 void update_progress(int cur, int total)
 {
@@ -2634,7 +2635,7 @@ void setup()
 
     printCenter(ipAddressString, 10, myBLUE);
     printCenter("Loading..", 20, myORANGE);
-    printCenter("AUDIO VISUALIZER", 30, myPURPLE);
+    printCenter("MUSIC VISUALIZER", 30, myPURPLE);
 
     httpUpdate.onProgress(update_progress);
 
@@ -2679,13 +2680,35 @@ void loop()
     handleHttpRequest();
 
 #ifdef AV
-    // Default to audio visualizer
-    loopAudioVisualizer();
+    unsigned long currentMillis = millis();
 
-    if (isScreenSaverMode && weatherConfigExist)
+    if (selectedTheme == WEATHER_STATION_THEME && weatherConfigExist)
     {
+
+      if (currentMillis - lastClockUpdateTime >= clockUpdateInterval)
+      {
+        lastClockUpdateTime = currentMillis;
+        getDateAndTime();
+      }
+
+      if (currentMillis - lastWeatherUpdateTime >= weatherUpdateInterval)
+      {
+        lastWeatherUpdateTime = currentMillis;
+        getWeatherInfo();
+      }
       printScrolling(scrollingText.c_str(), 5, myBLUE);
       printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
+    }
+    else
+    {
+      // Default to audio visualizer
+      loopAudioVisualizer();
+
+      if (isScreenSaverMode && weatherConfigExist)
+      {
+        printScrolling(scrollingText.c_str(), 5, myBLUE);
+        printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
+      }
     }
 #else
     // Check album art every 5 seconds
