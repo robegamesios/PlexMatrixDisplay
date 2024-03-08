@@ -6,6 +6,8 @@
 
 // #define AV // Uncomment to use Audio Visualizer
 
+// #define DEBUG // UNComment to see debug prints
+
 // ******************************************* BEGIN MATRIX DISPLAY *******************************************
 #pragma region MATRIX_DISPLAY
 
@@ -107,14 +109,15 @@ void clearScreen()
 
 void printCenter(const char *buf, int y, uint16_t textColor = myWHITE, GFXfont font = Picopixel)
 {
-  // Clear the screen
-  displayRect(0, y - 5, PANEL_WIDTH, 8, 0);
-
   int16_t x1, y1;
   uint16_t w, h;
   dma_display->setFont(&font);
   dma_display->getTextBounds(buf, 0, y, &x1, &y1, &w, &h);
-  dma_display->setCursor(32 - (w / 2), y);
+
+  // Clear the screen
+  displayRect(0, y - h - 1, PANEL_WIDTH, h + 4, myBLACK);
+
+  dma_display->setCursor(PANEL_WIDTH / 2 - (w / 2), y);
   dma_display->setTextColor(textColor);
   dma_display->print(buf);
 }
@@ -127,7 +130,7 @@ void printLeft(const char *buf, int x, int y, uint16_t textColor = myWHITE, GFXf
   dma_display->getTextBounds(buf, 0, y, &x1, &y1, &w, &h);
 
   // Clear the screen
-  displayRect(x, y - 5, w, 8, 0);
+  displayRect(x, y - h - 1, w, h + 4, myBLACK);
 
   dma_display->setCursor(x, y);
   dma_display->setTextColor(textColor);
@@ -762,7 +765,32 @@ void loadPreferences()
 
 #include "time.h"
 
-String getLocalTime()
+char weatherUnit[2] = "0";
+
+String getLocalTimeFromUnix(float unixTime)
+{
+  time_t unixTime_t = static_cast<time_t>(unixTime); // Convert int to time_t
+  struct tm *timeinfo = localtime(&unixTime_t);      // Convert time_t to struct tm
+  if (timeinfo == nullptr)
+  {
+    return ""; // Error handling if conversion fails
+  }
+
+  char buffer[20];
+
+  if (strcmp(weatherUnit, "0") == 0) // imperial
+  {
+    strftime(buffer, sizeof(buffer), "%l:%M%P", timeinfo);
+  }
+  else
+  {
+    strftime(buffer, sizeof(buffer), "%H:%M", timeinfo);
+  }
+  String localTime = String(buffer);
+  return localTime;
+}
+
+String getLocalTimeAndDate()
 {
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo))
@@ -773,15 +801,24 @@ String getLocalTime()
 
     return "";
   }
-  char buffer[20];                                                // Create a buffer to hold the formatted time
-  strftime(buffer, sizeof(buffer), "%I:%M %P  %b %d", &timeinfo); // Format time into buffer
-  String localTime = String(buffer);                              // Convert buffer to String
+  char buffer[20];
+
+  if (strcmp(weatherUnit, "0") == 0) // imperial
+  {
+    strftime(buffer, sizeof(buffer), "%l:%M%P  %b %d", &timeinfo);
+  }
+  else
+  {
+    strftime(buffer, sizeof(buffer), "%H:%M  %b %d", &timeinfo);
+  }
+
+  String localTime = String(buffer);
   return localTime;
 }
 
-void displayDateAndTime()
+void getDateAndTime()
 {
-  String localTime = getLocalTime();
+  String localTime = getLocalTimeAndDate();
   scrollingText = localTime;
 }
 
@@ -802,7 +839,6 @@ void displayDateAndTime()
 char weatherCityName[32];
 char weatherCountryCode[6];
 char weatherApikey[64];
-char weatherUnit[2] = "0";
 
 bool weatherConfigExist = false;
 
@@ -959,7 +995,7 @@ void printTemperature(const char *icon, const char *buf, int x, int y, uint16_t 
   int iconStartY = y - iconHeight + (iconHeight - h) / 2;
 
   // Clear the screen
-  displayRect(0, iconStartY, PANEL_WIDTH, iconHeight, myBLACK); // Adjust the clear rectangle based on the new x position
+  displayRect(0, iconStartY, PANEL_WIDTH, iconHeight, myBLACK); // clear full width of screen and height of icon
 
   drawWeatherIcon(iconStartX, iconStartY, iconWidth, iconHeight, icon, false);
 
@@ -1045,25 +1081,25 @@ void processWeatherJson(const char *response)
   if (selectedTheme == WEATHER_STATION_THEME || isScreenSaverMode)
   {
     std::string tempUnit = "";
-    std::string pressureUnit = "";
+    std::string pressureUnit = "hPa";
     std::string windUnit = "";
 
     if (strcmp(weatherUnit, "1") == 0)
     {
+      // metric
       tempUnit = "C";
-      pressureUnit = "hPa";
       windUnit = "m/s";
     }
     else if (strcmp(weatherUnit, "2") == 0)
     {
+      // standard
       tempUnit = "K";
-      pressureUnit = "inHg";
-      windUnit = "MPH";
+      windUnit = "m/s";
     }
     else
     {
+      // imperial
       tempUnit = "F";
-      pressureUnit = "inHg";
       windUnit = "MPH";
     }
 
@@ -1113,7 +1149,17 @@ void processWeatherJson(const char *response)
     int windSpeedInt = (int)wind_speed;
     std::string windString = "Wind: " + degreesToDirection(windDirectionInt) + " " + std::to_string(windSpeedInt) + windUnit;
 
-    std::string extraInfo = uppercasedDescription + "    " + pressureString + "    " + windString;
+    float sunrise = extractFloatValue(response, "\"sunrise\"");
+    // printf("sunrise: %.2f\n", sunrise);
+    std::string sunriseValue = getLocalTimeFromUnix(sunrise).c_str();
+    std::string sunriseString = "Sunrise: " + sunriseValue;
+
+    float sunset = extractFloatValue(response, "\"sunset\"");
+    // printf("sunset: %.2f\n", sunset);
+    std::string sunsetValue = getLocalTimeFromUnix(sunset).c_str();
+    std::string sunsetString = "Sunset: " + sunsetValue;
+
+    std::string extraInfo = uppercasedDescription + "    " + sunriseString + "    " + sunsetString + "    " + pressureString + "    " + windString;
 
     // display the info to LED Matrix
     String cleanCityName = String(weatherCityName);
@@ -1134,7 +1180,7 @@ void processWeatherJson(const char *response)
     lowerScrollingText = extraInfo.c_str();
 
     delay(500);
-    displayDateAndTime();
+    getDateAndTime();
   }
 }
 
@@ -1154,7 +1200,7 @@ void getWeatherInfo()
       String httpResponse = response;
 
 #ifdef DEBUG
-      Serial.println(httpResponse);
+      Serial.println("http code: " + httpResponse);
 #endif
 
       const char *jsonCString = httpResponse.c_str();
@@ -1169,7 +1215,7 @@ void displayScreenSaver()
 {
   if (weatherConfigExist)
   {
-    displayDateAndTime();
+    getDateAndTime();
     if (!isScreenSaverMode)
     {
       isScreenSaverMode = true;
@@ -1414,7 +1460,7 @@ void processPlexResponse(const String &payload)
   }
   else if (lastAlbumArtURL != "")
   {
-    displayDateAndTime();
+    getDateAndTime();
     displayMusicPaused();
   }
   else
@@ -1431,6 +1477,9 @@ void getPlexCurrentTrack()
 
   httpGet(apiUrl, headerKey, headerValue, [](int httpCode, const String &response)
           {
+#ifdef DEBUG
+            Serial.println("plex http code: " + httpCode);
+#endif
     if (httpCode == HTTP_CODE_OK) {
       processPlexResponse(response);
     } else {
@@ -1677,7 +1726,7 @@ void processSpotifyJson(const char *response)
       else if (strncmp(isPlayingStart, "false", 5) == 0)
       {
         // music player is paused.
-        displayDateAndTime();
+        getDateAndTime();
         displayMusicPaused();
         return;
       }
@@ -1765,7 +1814,7 @@ void processSpotifyJson(const char *response)
           strncpy(spotifyImageUrl, lastImageUrlValueStart, lastImageUrlEnd - lastImageUrlValueStart);
           spotifyImageUrl[lastImageUrlEnd - lastImageUrlValueStart] = '\0'; // Null-terminate the string
 #ifdef DEBUG
-          Serial.println("Image URL: " + String(imageUrl));
+          Serial.println("Image URL: " + String(spotifyImageUrl));
 #endif
         }
         else
@@ -1800,12 +1849,17 @@ void getSpotifyCurrentTrack()
 
   httpGet(endpoint, headerKey, headerValue, [](int httpCode, const String &response)
           {
+#ifdef DEBUG
+            Serial.println("http code: " + httpCode);
+#endif
+
     if (httpCode == HTTP_CODE_UNAUTHORIZED) {
       Serial.println("***** Access token expired");
       restartDevice();
     } else if (httpCode == HTTP_CODE_NO_CONTENT) {
       displayScreenSaver();
     } else if (httpCode == HTTP_CODE_OK) {
+      isScreenSaverMode = false;
       // Escape double quotes
       String escapedResponse = escapeSpecialCharacters(response);
 
@@ -2491,20 +2545,19 @@ void handleHttpRequest()
 int failedConnectionAttempts = 0;
 const int MAX_FAILED_ATTEMPTS = 5;
 unsigned long lastWeatherUpdateTime = 0;
+unsigned long lastClockUpdateTime = 0;
 const unsigned long weatherUpdateInterval = 600000; // 10 minutes
+const unsigned long clockUpdateInterval = 1000;     // 1 second
 unsigned long lastAlbumArtUpdateTime = 0;
-const unsigned long albumArtUpdateInterval = 5000; // 5000 milliseconds
+const unsigned long albumArtUpdateInterval = 5000; // 5 seconds
 
 void update_progress(int cur, int total)
 {
-  // Clear screen
-  displayRect(0, 40, PANEL_WIDTH, 10, myBLACK);
-
   // Display progress
   float progress = cur * 100.0 / total;
   char buffer[30];
   sprintf(buffer, "%.0f%%", progress);
-  printCenter(buffer, 40, myGREEN);
+  printCenter(buffer, 40, myGREEN, FreeSerifBold9pt7b);
 }
 
 void setup()
@@ -2575,10 +2628,8 @@ void setup()
     client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
 
     printCenter(ipAddressString, 10, myBLUE);
-
-    // Display Loading text
-    const char *loadingText = "Loading..";
-    printCenter(loadingText, 20, myORANGE);
+    printCenter("Loading..", 20, myORANGE);
+    printCenter("COVER ART", 30, myPURPLE);
 
     httpUpdate.onProgress(update_progress);
 
@@ -2626,10 +2677,8 @@ void setup()
     client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
 
     printCenter(ipAddressString, 10, myBLUE);
-
-    // Display Loading text
-    const char *loadingText = "Loading..";
-    printCenter(loadingText, 20, myORANGE);
+    printCenter("Loading..", 20, myORANGE);
+    printCenter("MUSIC VISUALIZER", 30, myPURPLE);
 
     httpUpdate.onProgress(update_progress);
 
@@ -2674,13 +2723,35 @@ void loop()
     handleHttpRequest();
 
 #ifdef AV
-    // Default to audio visualizer
-    loopAudioVisualizer();
+    unsigned long currentMillis = millis();
 
-    if (isScreenSaverMode && weatherConfigExist)
+    if (selectedTheme == WEATHER_STATION_THEME && weatherConfigExist)
     {
+
+      if (currentMillis - lastClockUpdateTime >= clockUpdateInterval)
+      {
+        lastClockUpdateTime = currentMillis;
+        getDateAndTime();
+      }
+
+      if (currentMillis - lastWeatherUpdateTime >= weatherUpdateInterval)
+      {
+        lastWeatherUpdateTime = currentMillis;
+        getWeatherInfo();
+      }
       printScrolling(scrollingText.c_str(), 5, myBLUE);
       printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
+    }
+    else
+    {
+      // Default to audio visualizer
+      loopAudioVisualizer();
+
+      if (isScreenSaverMode && weatherConfigExist)
+      {
+        printScrolling(scrollingText.c_str(), 5, myBLUE);
+        printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
+      }
     }
 #else
     // Check album art every 5 seconds
@@ -2688,6 +2759,13 @@ void loop()
 
     if (selectedTheme == WEATHER_STATION_THEME && weatherConfigExist)
     {
+
+      if (currentMillis - lastClockUpdateTime >= clockUpdateInterval)
+      {
+        lastClockUpdateTime = currentMillis;
+        getDateAndTime();
+      }
+
       if (currentMillis - lastWeatherUpdateTime >= weatherUpdateInterval)
       {
         lastWeatherUpdateTime = currentMillis;
@@ -2708,7 +2786,7 @@ void loop()
       {
         lastAlbumArtUpdateTime = currentMillis;
         getSpotifyCurrentTrack();
-        if (strlen(spotifyImageUrl) > 0)
+        if (strlen(spotifyImageUrl) > 0 && !isScreenSaverMode)
         {
           downloadSpotifyAlbumArt(String(spotifyImageUrl));
         }
