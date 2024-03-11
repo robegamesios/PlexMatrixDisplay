@@ -842,8 +842,6 @@ char weatherApikey[64];
 
 bool weatherConfigExist = false;
 
-const int daylightOffset_sec = 3600; // daylight savings time is ON, 0 for OFF
-
 void fetchWeatherConfigFile()
 {
   if (SPIFFS.exists(WEATHER_CONFIG_JSON))
@@ -1075,8 +1073,7 @@ void processWeatherJson(const char *response)
 {
   // we need the timezone to setup the Time
   float timezone = extractFloatValue(response, "\"timezone\"");
-  // printf("timezone: %.2f\n", timezone);
-  configTime(long(timezone), daylightOffset_sec, "pool.ntp.org");
+  configTime(long(timezone), 0, "pool.ntp.org"); // DST offset is set to zero, no need since timezone accounts for it.
 
   if (selectedTheme == WEATHER_STATION_THEME || isScreenSaverMode)
   {
