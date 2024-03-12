@@ -513,8 +513,6 @@ String scrollingText = "";
 String lowerScrollingText = "";
 String lastAlbumArtURL = ""; // Variable to store the last downloaded album art URL
 
-bool isScreenSaverMode = false;
-
 String decodeHtmlEntities(String text)
 {
   String decodedText = text;
@@ -744,6 +742,19 @@ const char *PREF_WEATHER_STATION_CREDENTIALS = "weatherStationCredentials";
 const char *PREF_PLEX_CREDENTIALS = "plexCredentials";
 const char *PREF_SPOTIFY_CREDENTIALS = "spotifyCredentials";
 
+#define WM_WEATHER_CITY_NAME_LABEL "weatherCityName"
+#define WM_WEATHER_COUNTRY_CODE_LABEL "weatherCountryCode"
+#define WM_WEATHER_API_KEY_LABEL "weatherApiKey"
+#define WM_WEATHER_UNIT_LABEL "weatherUnit"
+#define WEATHER_CONFIG_JSON "/weather_config.json"
+
+char weatherCityName[32];
+char weatherCountryCode[6];
+char weatherApikey[64];
+char weatherUnit[2] = "0";
+
+bool weatherConfigExist = false;
+
 uint8_t selectedTheme;
 uint8_t currentlyRunningTheme;
 
@@ -756,91 +767,6 @@ void loadPreferences()
 {
   selectedTheme = preferences.getUInt(PREF_SELECTED_THEME, AUDIO_VISUALIZER_THEME);
 }
-
-#pragma endregion
-// ******************************************* END PREFERENCES ************************************************
-
-// ******************************************* BEGIN CLOCK ****************************************************
-#pragma region CLOCK
-
-#include "time.h"
-
-char weatherUnit[2] = "0";
-
-String getLocalTimeFromUnix(float unixTime)
-{
-  time_t unixTime_t = static_cast<time_t>(unixTime); // Convert int to time_t
-  struct tm *timeinfo = localtime(&unixTime_t);      // Convert time_t to struct tm
-  if (timeinfo == nullptr)
-  {
-    return ""; // Error handling if conversion fails
-  }
-
-  char buffer[20];
-
-  if (strcmp(weatherUnit, "0") == 0) // imperial
-  {
-    strftime(buffer, sizeof(buffer), "%l:%M%P", timeinfo);
-  }
-  else
-  {
-    strftime(buffer, sizeof(buffer), "%H:%M", timeinfo);
-  }
-  String localTime = String(buffer);
-  return localTime;
-}
-
-String getLocalTimeAndDate()
-{
-  struct tm timeinfo;
-  if (!getLocalTime(&timeinfo))
-  {
-#ifdef DEBUG
-    Serial.println("Failed to obtain time");
-#endif
-
-    return "";
-  }
-  char buffer[20];
-
-  if (strcmp(weatherUnit, "0") == 0) // imperial
-  {
-    strftime(buffer, sizeof(buffer), "%l:%M%P  %b %d", &timeinfo);
-  }
-  else
-  {
-    strftime(buffer, sizeof(buffer), "%H:%M  %b %d", &timeinfo);
-  }
-
-  String localTime = String(buffer);
-  return localTime;
-}
-
-void getDateAndTime()
-{
-  String localTime = getLocalTimeAndDate();
-  scrollingText = localTime;
-}
-
-#pragma endregion
-// ******************************************* END CLOCK ******************************************************
-
-// ******************************************* BEGIN WEATHER **************************************************
-#pragma region WEATHER
-
-#include "weatherIcons.h"
-
-#define WM_WEATHER_CITY_NAME_LABEL "weatherCityName"
-#define WM_WEATHER_COUNTRY_CODE_LABEL "weatherCountryCode"
-#define WM_WEATHER_API_KEY_LABEL "weatherApiKey"
-#define WM_WEATHER_UNIT_LABEL "weatherUnit"
-#define WEATHER_CONFIG_JSON "/weather_config.json"
-
-char weatherCityName[32];
-char weatherCountryCode[6];
-char weatherApikey[64];
-
-bool weatherConfigExist = false;
 
 void fetchWeatherConfigFile()
 {
@@ -922,6 +848,78 @@ void saveWeatherConfig(const char *cityName, const char *countryCode, const char
   }
   configFile.close();
 }
+
+#pragma endregion
+// ******************************************* END PREFERENCES ************************************************
+
+#ifdef AV
+// ******************************************* BEGIN CLOCK ****************************************************
+#pragma region CLOCK
+
+#include "time.h"
+
+String getLocalTimeFromUnix(float unixTime)
+{
+  time_t unixTime_t = static_cast<time_t>(unixTime); // Convert int to time_t
+  struct tm *timeinfo = localtime(&unixTime_t);      // Convert time_t to struct tm
+  if (timeinfo == nullptr)
+  {
+    return ""; // Error handling if conversion fails
+  }
+
+  char buffer[20];
+
+  if (strcmp(weatherUnit, "0") == 0) // imperial
+  {
+    strftime(buffer, sizeof(buffer), "%l:%M%P", timeinfo);
+  }
+  else
+  {
+    strftime(buffer, sizeof(buffer), "%H:%M", timeinfo);
+  }
+  String localTime = String(buffer);
+  return localTime;
+}
+
+String getLocalTimeAndDate()
+{
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo))
+  {
+#ifdef DEBUG
+    Serial.println("Failed to obtain time");
+#endif
+
+    return "";
+  }
+  char buffer[20];
+
+  if (strcmp(weatherUnit, "0") == 0) // imperial
+  {
+    strftime(buffer, sizeof(buffer), "%l:%M%P  %b %d", &timeinfo);
+  }
+  else
+  {
+    strftime(buffer, sizeof(buffer), "%H:%M  %b %d", &timeinfo);
+  }
+
+  String localTime = String(buffer);
+  return localTime;
+}
+
+void getDateAndTime()
+{
+  String localTime = getLocalTimeAndDate();
+  scrollingText = localTime;
+}
+
+#pragma endregion
+// ******************************************* END CLOCK ******************************************************
+
+// ******************************************* BEGIN WEATHER **************************************************
+#pragma region WEATHER
+
+#include "weatherIcons.h"
 
 // Draw one of the available weather icons in the specified space
 void drawWeatherIcon(int startx, int starty, int width, int height, const char *icon, bool enlarged)
@@ -1075,7 +1073,7 @@ void processWeatherJson(const char *response)
   float timezone = extractFloatValue(response, "\"timezone\"");
   configTime(long(timezone), 0, "pool.ntp.org"); // DST offset is set to zero, no need since timezone accounts for it.
 
-  if (selectedTheme == WEATHER_STATION_THEME || isScreenSaverMode)
+  if (selectedTheme == WEATHER_STATION_THEME)
   {
     std::string tempUnit = "";
     std::string pressureUnit = "hPa";
@@ -1208,31 +1206,9 @@ void getWeatherInfo()
     } });
 }
 
-void displayScreenSaver()
-{
-  if (weatherConfigExist)
-  {
-    getDateAndTime();
-    if (!isScreenSaverMode)
-    {
-      isScreenSaverMode = true;
-      resetAlbumArtVariables();
-      clearScreen();
-      getWeatherInfo();
-    }
-  }
-  else
-  {
-    if (!isScreenSaverMode)
-    {
-      isScreenSaverMode = true;
-      displayNoTrackPlaying();
-    }
-  }
-}
-
 #pragma endregion
 // ******************************************* END WEATHER ****************************************************
+#endif
 
 // ******************************************* BEGIN PLEX ALBUM ART *******************************************
 #pragma region PLEX_ALBUM_ART
@@ -1457,12 +1433,11 @@ void processPlexResponse(const String &payload)
   }
   else if (lastAlbumArtURL != "")
   {
-    getDateAndTime();
     displayMusicPaused();
   }
   else
   {
-    displayScreenSaver();
+    displayNoTrackPlaying();
   }
 }
 
@@ -1480,7 +1455,7 @@ void getPlexCurrentTrack()
     if (httpCode == HTTP_CODE_OK) {
       processPlexResponse(response);
     } else {
-      displayScreenSaver();
+      displayNoTrackPlaying();
     } });
 }
 
@@ -1715,15 +1690,10 @@ void processSpotifyJson(const char *response)
       // Check if it's 'true' or 'false'
       if (strncmp(isPlayingStart, "true", 4) == 0)
       {
-        if (isScreenSaverMode)
-        {
-          isScreenSaverMode = false;
-        }
       }
       else if (strncmp(isPlayingStart, "false", 5) == 0)
       {
         // music player is paused.
-        getDateAndTime();
         displayMusicPaused();
         return;
       }
@@ -1733,7 +1703,7 @@ void processSpotifyJson(const char *response)
   if (nameKeyStart == nullptr)
   {
     Serial.println("*******Null name key, nothing to process");
-    getWeatherInfo();
+    displayNoTrackPlaying();
     return;
   }
 
@@ -1854,9 +1824,8 @@ void getSpotifyCurrentTrack()
       Serial.println("***** Access token expired");
       restartDevice();
     } else if (httpCode == HTTP_CODE_NO_CONTENT) {
-      displayScreenSaver();
+      displayNoTrackPlaying();
     } else if (httpCode == HTTP_CODE_OK) {
-      isScreenSaverMode = false;
       // Escape double quotes
       String escapedResponse = escapeSpecialCharacters(response);
 
@@ -2150,7 +2119,6 @@ void loopAudioVisualizer()
       buttonPushCounter = DemoModeMem;  // restore settings
       autoChangePatterns = AutoModeMem; // restore settings
       DemoFlag = false;
-      isScreenSaverMode = DemoFlag;
     }
     // Now visualize those bar heights
     switch (buttonPushCounter)
@@ -2214,7 +2182,6 @@ void loopAudioVisualizer()
       DoublePeak(band);
       break;
     case 12:
-      displayScreenSaver();
       break;
     }
 
@@ -2652,6 +2619,17 @@ void setup()
   {
     // Setup audio visualizer
     setupI2S();
+
+    // get the weather
+    fetchWeatherConfigFile();
+    if (weatherConfigExist)
+    {
+      getWeatherInfo();
+    }
+    else
+    {
+      displayCheckWeatherCredentials();
+    }
   }
 #else
   if (selectedTheme == PLEX_ALBUM_ART_THEME)
@@ -2663,7 +2641,7 @@ void setup()
     fetchSpotifyConfigFile();
     getRefreshToken();
   }
-  else if (selectedTheme == AUDIO_VISUALIZER_THEME)
+  else if (selectedTheme == WEATHER_STATION_THEME || selectedTheme == AUDIO_VISUALIZER_THEME)
   {
     Serial.print("will update firmware to TuneFrameAV_Firmware");
     // update firmware to canvas
@@ -2699,17 +2677,6 @@ void setup()
   }
 #endif
 
-  // get the weather
-  fetchWeatherConfigFile();
-  if (weatherConfigExist)
-  {
-    getWeatherInfo();
-  }
-  else
-  {
-    displayCheckWeatherCredentials();
-  }
-
   server.begin();
 }
 
@@ -2743,33 +2710,12 @@ void loop()
     {
       // Default to audio visualizer
       loopAudioVisualizer();
-
-      if (isScreenSaverMode && weatherConfigExist)
-      {
-        printScrolling(scrollingText.c_str(), 5, myBLUE);
-        printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
-      }
     }
 #else
     // Check album art every 5 seconds
     unsigned long currentMillis = millis();
 
-    if (selectedTheme == WEATHER_STATION_THEME && weatherConfigExist)
-    {
-
-      if (currentMillis - lastClockUpdateTime >= clockUpdateInterval)
-      {
-        lastClockUpdateTime = currentMillis;
-        getDateAndTime();
-      }
-
-      if (currentMillis - lastWeatherUpdateTime >= weatherUpdateInterval)
-      {
-        lastWeatherUpdateTime = currentMillis;
-        getWeatherInfo();
-      }
-    }
-    else if (selectedTheme == PLEX_ALBUM_ART_THEME)
+    if (selectedTheme == PLEX_ALBUM_ART_THEME)
     {
       if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval)
       {
@@ -2783,7 +2729,7 @@ void loop()
       {
         lastAlbumArtUpdateTime = currentMillis;
         getSpotifyCurrentTrack();
-        if (strlen(spotifyImageUrl) > 0 && !isScreenSaverMode)
+        if (strlen(spotifyImageUrl) > 0)
         {
           downloadSpotifyAlbumArt(String(spotifyImageUrl));
         }
