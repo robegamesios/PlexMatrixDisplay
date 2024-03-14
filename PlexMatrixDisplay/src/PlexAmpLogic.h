@@ -97,7 +97,8 @@ PlexData processPlexResponse(const String &payload)
             }
         }
     }
-    PlexData data("", "", "paused");
+    // reusing artistName to detect playerState
+    PlexData data("", "", playerState);
     return data;
 }
 

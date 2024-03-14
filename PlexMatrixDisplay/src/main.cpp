@@ -4,7 +4,7 @@
 #define SPOTIFY_ALBUM_ART_THEME 201
 #define GIF_ART_THEME 210
 
-// #define DEBUG // UNComment to see debug prints
+#define DEBUG // UnComment to see debug prints
 
 #include "MatrixDisplay.h"
 #include "TFWifiManager.h"
@@ -23,6 +23,7 @@ uint8_t currentlyRunningTheme;
 String scrollingText = "";
 String lowerScrollingText = "";
 String lastAlbumArtURL = ""; // Variable to store the last downloaded album art URL
+bool musicPlayerActive = false;
 
 struct ThemeInfo
 {
@@ -51,6 +52,7 @@ ThemeInfo getThemeInfo()
   {
     return ThemeInfo("SPOTIFY ART", "spotifyArt_FW");
   }
+  return ThemeInfo("UNKNOWN THEME", "");
 }
 
 void resetAlbumArtVariables()
@@ -75,6 +77,7 @@ void displayNoTrackPlaying()
   Serial.println("No track is currently playing.");
 #endif
 
+  musicPlayerActive = false;
   resetAlbumArtVariables();
   clearScreen();
   printCenter("NO TRACK IS", 20, myPURPLE);
@@ -386,6 +389,10 @@ void getPlexCurrentTrack()
             String trackTitle = data.trackTitle;
             String artistName = data.artistName;
 
+            if (artistName == "")
+            {
+              displayNoTrackPlaying();
+            }
             if (artistName == "paused")
             {
                 displayMusicPaused();
@@ -550,6 +557,7 @@ void getSpotifyCurrentTrack()
     } else if (httpCode == HTTP_CODE_NO_CONTENT) {
       displayNoTrackPlaying();
     } else if (httpCode == HTTP_CODE_OK) {
+      musicPlayerActive = true;
       // Convert to const char*
       const char *jsonCString = response.c_str();
       processSpotifyJson(jsonCString);
@@ -1528,7 +1536,7 @@ void loop()
       lastAlbumArtUpdateTime = currentMillis;
       getSpotifyCurrentTrack();
 
-      if (spotifyAlbumArtUrl.length() > 0)
+      if (spotifyAlbumArtUrl.length() > 0 && musicPlayerActive)
       {
         downloadSpotifyAlbumArt(spotifyAlbumArtUrl);
       }
