@@ -4,507 +4,14 @@
 #define SPOTIFY_ALBUM_ART_THEME 201
 #define GIF_ART_THEME 210
 
-// #define AV // Uncomment to use Audio Visualizer
-
 // #define DEBUG // UNComment to see debug prints
 
-// ******************************************* BEGIN MATRIX DISPLAY *******************************************
-#pragma region MATRIX_DISPLAY
-
-#include <FS.h>
-#include <SPIFFS.h>
-#include <JPEGDEC.h>
-#include <ArduinoJson.h>
-#include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
-#include "picopixel.h"
-#include "Fonts/FreeSerifBold9pt7b.h"
-
-#define PANEL_WIDTH 64
-#define PANEL_HEIGHT 64
-#define PANELS_NUMBER 1
-
-MatrixPanel_I2S_DMA *dma_display = nullptr;
-uint16_t myBLACK = dma_display->color565(0, 0, 0);
-uint16_t myWHITE = dma_display->color565(255, 255, 255);
-uint16_t myRED = dma_display->color565(255, 0, 0);
-uint16_t myGREEN = dma_display->color565(0, 255, 0);
-uint16_t myBLUE = dma_display->color565(0, 0, 255);
-uint16_t myORANGE = dma_display->color565(255, 140, 0);
-uint16_t myPURPLE = dma_display->color565(138, 43, 226);
-uint16_t myCYAN = dma_display->color565(0, 204, 204);
-uint16_t myGOLD = dma_display->color565(204, 204, 0);
-
-JPEGDEC jpeg;
-
-const char *ALBUM_ART = "/album.jpg";
-
-void displaySetup()
-{
-  Serial.println("matrix display setup");
-  HUB75_I2S_CFG mxconfig(
-      PANEL_WIDTH,  // module width
-      PANEL_HEIGHT, // module height
-      PANELS_NUMBER // Chain length
-  );
-  mxconfig.gpio.e = 18;
-  mxconfig.clkphase = false;
-  dma_display = new MatrixPanel_I2S_DMA(mxconfig);
-  dma_display->setTextWrap(false);
-  dma_display->begin();
-}
-
-// This next function will be called during decoding of the jpeg file to render each block to the Matrix.
-int JPEGDraw(JPEGDRAW *pDraw)
-{
-  // Stop further decoding as image is running off bottom of screen
-  if (pDraw->y >= dma_display->height())
-    return 1;
-  dma_display->drawRGBBitmap(pDraw->x, pDraw->y, pDraw->pPixels, pDraw->iWidth, pDraw->iHeight);
-  return 1;
-}
-
-fs::File myfile;
-void *myOpen(const char *filename, int32_t *size)
-{
-  myfile = SPIFFS.open(filename);
-  *size = myfile.size();
-  return &myfile;
-}
-
-void myClose(void *handle)
-{
-  if (myfile)
-    myfile.close();
-}
-
-int32_t myRead(JPEGFILE *handle, uint8_t *buffer, int32_t length)
-{
-  if (!myfile)
-    return 0;
-  return myfile.read(buffer, length);
-}
-
-int32_t mySeek(JPEGFILE *handle, int32_t position)
-{
-  if (!myfile)
-    return 0;
-  return myfile.seek(position);
-}
-
-void showDefaultScreen()
-{
-  dma_display->fillScreen(myBLACK);
-}
-
-void displayRect(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color)
-{
-  dma_display->fillRect(x, y, w, h, color);
-}
-
-// Image Related
-void clearScreen()
-{
-  dma_display->fillScreen(myBLACK);
-}
-
-void printCenter(const char *buf, int y, uint16_t textColor = myWHITE, GFXfont font = Picopixel)
-{
-  int16_t x1, y1;
-  uint16_t w, h;
-  dma_display->setFont(&font);
-  dma_display->getTextBounds(buf, 0, y, &x1, &y1, &w, &h);
-
-  // Clear the screen
-  displayRect(0, y - h - 1, PANEL_WIDTH, h + 4, myBLACK);
-
-  dma_display->setCursor(PANEL_WIDTH / 2 - (w / 2), y);
-  dma_display->setTextColor(textColor);
-  dma_display->print(buf);
-}
-
-void printLeft(const char *buf, int x, int y, uint16_t textColor = myWHITE, GFXfont font = Picopixel)
-{
-  int16_t x1, y1;
-  uint16_t w, h;
-  dma_display->setFont(&font);
-  dma_display->getTextBounds(buf, 0, y, &x1, &y1, &w, &h);
-
-  // Clear the screen
-  displayRect(x, y - h - 1, w, h + 4, myBLACK);
-
-  dma_display->setCursor(x, y);
-  dma_display->setTextColor(textColor);
-  dma_display->print(buf);
-}
-
-enum ScrollState
-{
-  SCROLL_IDLE,
-  SCROLL_INIT,
-  SCROLL_RUNNING
-};
-
-char previousScrollingText[100] = "";
-char previousScrollingText2[100] = "";
-
-void printScrolling(const char *buf, int y, uint16_t textColor = myWHITE, GFXfont font = Picopixel)
-{
-  static int16_t x1, y1;
-  static uint16_t w, h;
-  static uint16_t textWidth;
-  static int clearOriginY = y - 5;
-  static int clearHeight = 7;
-  static int16_t xPos;
-  static unsigned long lastScrollTime;
-  static int scrollSpeed = 100; // Adjust scroll speed here (milliseconds per step)
-  static ScrollState state = SCROLL_IDLE;
-
-  switch (state)
-  {
-  case SCROLL_IDLE:
-    // Set the font and get the width of the text
-    dma_display->setFont(&font);
-    dma_display->getTextBounds(buf, 0, y, &x1, &y1, &w, &h);
-    textWidth = w;
-
-    // If the text width is greater than the screen width, start scrolling
-    if (textWidth > PANEL_WIDTH)
-    {
-      // Initialize scrolling position
-      xPos = PANEL_WIDTH;
-      lastScrollTime = millis();
-      state = SCROLL_RUNNING;
-    }
-    else
-    {
-      if (strcmp(previousScrollingText, buf) != 0)
-      {
-        // If the text width is not greater than the screen width, print it centered
-        // Clear part of the screen for the scrolling text
-        displayRect(0, clearOriginY, PANEL_WIDTH, clearHeight, 0);
-
-        dma_display->setCursor(32 - (w / 2), y);
-        dma_display->setTextColor(textColor);
-        dma_display->print(buf);
-        state = SCROLL_IDLE; // Reset state to IDLE if no scrolling is needed
-        strcpy(previousScrollingText, buf);
-      }
-    }
-    break;
-
-  case SCROLL_RUNNING:
-    // Calculate time since last scroll
-    unsigned long currentTime = millis();
-    unsigned long elapsedTime = currentTime - lastScrollTime;
-
-    // If enough time has elapsed, scroll the text
-    if (elapsedTime >= scrollSpeed)
-    {
-      // Clear part of the screen for the scrolling text
-      displayRect(0, clearOriginY, PANEL_WIDTH, clearHeight, 0);
-
-      // Calculate the new position for the text
-      int16_t displayX = xPos;
-
-      // Print the text at the new position
-      dma_display->setCursor(displayX, y);
-      dma_display->setTextColor(textColor);
-      dma_display->print(buf);
-
-      // Update last scroll time
-      lastScrollTime = currentTime;
-
-      // Move the text to the left
-      xPos--;
-
-      if (xPos == -textWidth)
-      {
-        // If the text has scrolled completely off the screen, reset xPos to start over
-        xPos = PANEL_WIDTH;
-        state = SCROLL_IDLE;
-      }
-    }
-    break;
-  }
-}
-
-void printScrolling2(const char *buf, int y, uint16_t textColor = myWHITE, GFXfont font = Picopixel)
-{
-  static int16_t x1, y1;
-  static uint16_t w, h;
-  static uint16_t textWidth;
-  static int clearOriginY = y - 5;
-  static int clearHeight = 7;
-  static int16_t xPos;
-  static unsigned long lastScrollTime;
-  static int scrollSpeed = 100; // Adjust scroll speed here (milliseconds per step)
-  static ScrollState state = SCROLL_IDLE;
-
-  switch (state)
-  {
-  case SCROLL_IDLE:
-    // Set the font and get the width of the text
-    dma_display->setFont(&font);
-    dma_display->getTextBounds(buf, 0, y, &x1, &y1, &w, &h);
-    textWidth = w;
-
-    // If the text width is greater than the screen width, start scrolling
-    if (textWidth > PANEL_WIDTH)
-    {
-      // Initialize scrolling position
-      xPos = PANEL_WIDTH;
-      lastScrollTime = millis();
-      state = SCROLL_RUNNING;
-    }
-    else
-    {
-      if (strcmp(previousScrollingText2, buf) != 0)
-      {
-        // If the text width is not greater than the screen width, print it centered
-        // Clear part of the screen for the scrolling text
-        displayRect(0, clearOriginY, PANEL_WIDTH, clearHeight, 0);
-
-        dma_display->setCursor(32 - (w / 2), y);
-        dma_display->setTextColor(textColor);
-        dma_display->print(buf);
-        state = SCROLL_IDLE; // Reset state to IDLE if no scrolling is needed
-        strcpy(previousScrollingText2, buf);
-      }
-    }
-    break;
-
-  case SCROLL_RUNNING:
-    // Calculate time since last scroll
-    unsigned long currentTime = millis();
-    unsigned long elapsedTime = currentTime - lastScrollTime;
-
-    // If enough time has elapsed, scroll the text
-    if (elapsedTime >= scrollSpeed)
-    {
-      // Clear part of the screen for the scrolling text
-      displayRect(0, clearOriginY, PANEL_WIDTH, clearHeight, 0);
-
-      // Calculate the new position for the text
-      int16_t displayX = xPos;
-
-      // Print the text at the new position
-      dma_display->setCursor(displayX, y);
-      dma_display->setTextColor(textColor);
-      dma_display->print(buf);
-
-      // Update last scroll time
-      lastScrollTime = currentTime;
-
-      // Move the text to the left
-      xPos--;
-
-      if (xPos == -textWidth)
-      {
-        // If the text has scrolled completely off the screen, reset xPos to start over
-        xPos = PANEL_WIDTH;
-        state = SCROLL_IDLE;
-      }
-    }
-    break;
-  }
-}
-
-int drawImagefromFile(const char *imageFileUri, int offset)
-{
-  unsigned long lTime = millis();
-  lTime = millis();
-  jpeg.open((const char *)imageFileUri, myOpen, myClose, myRead, mySeek, JPEGDraw);
-  // int decodeStatus = jpeg.decode(0, 0, 0);
-  int decodeStatus = jpeg.decode(offset, 8, 0);
-  jpeg.close();
-  Serial.print("Time taken to decode and display Image (ms): ");
-  Serial.println(millis() - lTime);
-  return decodeStatus;
-}
-
-uint16_t color565(uint32_t rgb)
-{
-  return (((rgb >> 16) & 0xF8) << 8) |
-         (((rgb >> 8) & 0xFC) << 3) |
-         ((rgb & 0xFF) >> 3);
-};
-
-void drawBitmap(int startx, int starty, int width, int height, uint32_t *bitmap)
-{
-  int counter = 0;
-  for (int yy = 0; yy < height; yy++)
-  {
-    for (int xx = 0; xx < width; xx++)
-    {
-      dma_display->drawPixel(startx + xx, starty + yy, color565(bitmap[counter]));
-      counter++;
-    }
-  }
-}
-
-// Draw the bitmap, with an option to enlarge it by a factor of two
-void drawBitmap(int startx, int starty, int width, int height, uint32_t *bitmap, bool enlarged)
-{
-  int counter = 0;
-  if (enlarged)
-  {
-    for (int yy = 0; yy < height; yy++)
-    {
-      for (int xx = 0; xx < width; xx++)
-      {
-        dma_display->drawPixel(startx + 2 * xx, starty + 2 * yy, color565(bitmap[counter]));
-        dma_display->drawPixel(startx + 2 * xx + 1, starty + 2 * yy, color565(bitmap[counter]));
-        dma_display->drawPixel(startx + 2 * xx, starty + 2 * yy + 1, color565(bitmap[counter]));
-        dma_display->drawPixel(startx + 2 * xx + 1, starty + 2 * yy + 1, color565(bitmap[counter]));
-        counter++;
-      }
-    }
-  }
-  else
-    drawBitmap(startx, starty, width, height, bitmap);
-}
-
-#pragma endregion
-// ******************************************* END MATRIX DISPLAY *********************************************
-
-// ******************************************* BEGIN UTILS ****************************************************
-#pragma region UTILS
-
-#include <cstring>
-
-std::string capitalizeString(const char *str)
-{
-  std::string capitalizedStr;
-  if (str != nullptr && strlen(str) > 0)
-  {
-    capitalizedStr += std::toupper(str[0]);
-    capitalizedStr += &str[1]; // Append the rest of the string
-  }
-  return capitalizedStr;
-}
-
-std::string toUpperCase(const char *str)
-{
-  std::string upperStr;
-  if (str != nullptr)
-  {
-    size_t length = strlen(str);
-    for (size_t i = 0; i < length; ++i)
-    {
-      upperStr += std::toupper(str[i]);
-    }
-  }
-  return upperStr;
-}
-
-const char *strrstr(const char *haystack, const char *needle)
-{
-  if (!*needle)
-    return haystack;
-  const char *result = nullptr;
-  const char *p;
-  const char *q;
-  for (; *haystack; ++haystack)
-  {
-    if (*haystack == needle[0])
-    {
-      p = haystack;
-      q = needle;
-      while (*p && *q && *p == *q)
-      {
-        ++p;
-        ++q;
-      }
-      if (!*q)
-      {
-        result = haystack;
-      }
-    }
-  }
-  return result;
-}
-
-const char *extractStringValue(const char *jsonString, const char *fieldName, bool findLast = false, const char *defaultValue = nullptr)
-{
-  const char *fieldStart = nullptr;
-
-  // Find the start index of the field
-  if (findLast)
-  {
-    fieldStart = strrstr(jsonString, fieldName);
-  }
-  else
-  {
-    fieldStart = strstr(jsonString, fieldName);
-  }
-
-  if (fieldStart == nullptr)
-  {
-    printf("Error: Unable to find field '%s'.\n", fieldName);
-    return defaultValue;
-  }
-
-  // Move to the actual value
-  fieldStart += strlen(fieldName) + 2; // Account for the field name and 1 colon and 1 quote: "\"fieldName\":"
-
-  // Find the end index of the field value
-  const char *fieldValueEnd = strchr(fieldStart, '"');
-  if (fieldValueEnd == nullptr)
-  {
-    printf("Error: Invalid JSON format for field '%s'.\n", fieldName);
-    return defaultValue;
-  }
-
-  // Calculate the length of the field value
-  int fieldValueLength = fieldValueEnd - fieldStart;
-
-  // Allocate memory for the field value string
-  char *fieldValue = (char *)malloc(fieldValueLength + 1);
-  if (fieldValue == nullptr)
-  {
-    // Handle memory allocation failure
-    printf("Error: Failed to allocate memory.\n");
-    return defaultValue;
-  }
-
-  // Copy the value
-  strncpy(fieldValue, fieldStart, fieldValueLength);
-  fieldValue[fieldValueLength] = '\0';
-
-  return fieldValue;
-}
-
-float extractFloatValue(const char *jsonString, const char *fieldName, float defaultValue = 0.0f)
-{
-  // Find the start index of the field
-  const char *fieldStart = strstr(jsonString, fieldName);
-  if (fieldStart == nullptr)
-  {
-    printf("Error: Unable to find field '%s'.\n", fieldName);
-    return defaultValue;
-  }
-
-  // Move to the actual value
-  fieldStart += strlen(fieldName) + 1; // Account for the field name and colon: "\"fieldName\":"
-
-  // Find the end index of the field value
-  float extractedValue;
-  if (sscanf(fieldStart, "%f", &extractedValue) != 1)
-  {
-    printf("Error: Unable to extract float value for field '%s'.\n", fieldName);
-    return defaultValue;
-  }
-
-  return extractedValue;
-}
-
-void floatToChar(float floatValue, char *charArray, int bufferSize)
-{
-  snprintf(charArray, bufferSize, "%.0f", floatValue);
-}
-
-#pragma endregion
-// ******************************************* END UTILS ******************************************************
+#include "MatrixDisplay.h"
+#include "TFWifiManager.h"
+#include "TFNetworking.h"
+#include "WeatherClock.h"
+#include "PlexAmpLogic.h"
+#include "SpotifyLogic.h"
 
 // ******************************************* BEGIN GLOBAL VARS AND COMMON FUNC ******************************
 #pragma region GLOBAL_VARS_AND_UTILS
@@ -512,22 +19,6 @@ void floatToChar(float floatValue, char *charArray, int bufferSize)
 String scrollingText = "";
 String lowerScrollingText = "";
 String lastAlbumArtURL = ""; // Variable to store the last downloaded album art URL
-
-String decodeHtmlEntities(String text)
-{
-  String decodedText = text;
-  decodedText.replace("&quot;", "\"");
-  decodedText.replace("&amp;", "&");
-  decodedText.replace("&apos;", "'");
-  decodedText.replace("&lt;", "<");
-  decodedText.replace("&gt;", ">");
-  decodedText.replace("&#8217;", "'");
-  decodedText.replace("&#8216;", "'");
-  decodedText.replace("&#39;", "'");
-  // Add more replacements as needed
-
-  return decodedText;
-}
 
 void resetAlbumArtVariables()
 {
@@ -591,81 +82,11 @@ void displayMusicPaused()
   }
 }
 
-// Function to escape double quote characters, remove newlines, and extra whitespace
-String escapeSpecialCharacters(const String &jsonString)
-{
-  String escapedString;
-  bool insideQuotes = false;
-  for (char c : jsonString)
-  {
-    if (c == '"')
-    {
-      insideQuotes = !insideQuotes;
-      escapedString += c;
-    }
-    else if (c == '\n' || c == '\r')
-    {
-      // Skip newlines
-      continue;
-    }
-    else if (c == ' ' && !insideQuotes)
-    {
-      // Skip extra whitespace outside quotes
-      continue;
-    }
-    else
-    {
-      escapedString += c;
-    }
-  }
-  return escapedString;
-}
-
-String urlEncode(const char *msg)
-{
-  const char *hex = "0123456789ABCDEF";
-  String encodedMsg = "";
-
-  while (*msg != '\0')
-  {
-    if (('a' <= *msg && *msg <= 'z') ||
-        ('A' <= *msg && *msg <= 'Z') ||
-        ('0' <= *msg && *msg <= '9') ||
-        *msg == '-' || *msg == '_' || *msg == '.' || *msg == '~')
-    {
-      encodedMsg += *msg;
-    }
-    else
-    {
-      encodedMsg += '%';
-      encodedMsg += hex[*msg >> 4];
-      encodedMsg += hex[*msg & 15];
-    }
-    msg++;
-  }
-
-  return encodedMsg;
-}
-
-#pragma endregion
-// ******************************************* END GLOBAL VARS AND COMMON FUNC ********************************
-
-// ******************************************* BEGIN WIFI *****************************************************
-#pragma region WIFI
-
-#include <WiFi.h>
-#include <WiFiManager.h>
-#include <HTTPClient.h>
-
-WiFiManager wifiManager;
-
-std::vector<const char *> _menu = {"wifi", "exit"};
-
 void restartDevice()
 {
   clearScreen();
   printCenter("RESTARTING..", 30);
-  delay(3000);
+  delay(1000);
   ESP.restart();
 }
 
@@ -675,59 +96,8 @@ void resetWifi()
   wifiManager.resetSettings();
 }
 
-void wifiConnect()
-{
-  bool resp;
-
-  wifiManager.setTitle("TUNEFRAME Wifi Setup");
-  wifiManager.setMenu(_menu);
-
-  resp = wifiManager.autoConnect("TUNEFRAME Wifi Setup");
-
-  if (!resp)
-  {
-    Serial.println("Failed to connect");
-    printCenter("FAILED to Connect", 30);
-    restartDevice();
-  }
-  else
-  {
-    Serial.println("connected!");
-  }
-}
-
-boolean isConnected()
-{
-  return WiFi.status() == WL_CONNECTED;
-}
-
 #pragma endregion
-// ******************************************* END WIFI *******************************************************
-
-// ******************************************* BEGIN NETWORKING ***********************************************
-#pragma region NETWORKING
-
-void httpGet(const String &url, const String &authorizationHeaderKey, const String &authorizationHeaderValue, std::function<void(int, const String &)> callback)
-{
-  HTTPClient http;
-  http.begin(url);
-  http.addHeader(authorizationHeaderKey, authorizationHeaderValue);
-
-  int httpCode = http.GET();
-  String response;
-
-  if (httpCode == HTTP_CODE_OK)
-  {
-    response = http.getString();
-  }
-
-  callback(httpCode, response);
-
-  http.end();
-}
-
-#pragma endregion
-// ******************************************* END NETWORKING *************************************************
+// ******************************************* END GLOBAL VARS AND COMMON FUNC ********************************
 
 // ******************************************* BEGIN PREFERENCES **********************************************
 #pragma region PREFERENCES
@@ -742,19 +112,6 @@ const char *PREF_WEATHER_STATION_CREDENTIALS = "weatherStationCredentials";
 const char *PREF_PLEX_CREDENTIALS = "plexCredentials";
 const char *PREF_SPOTIFY_CREDENTIALS = "spotifyCredentials";
 
-#define WM_WEATHER_CITY_NAME_LABEL "weatherCityName"
-#define WM_WEATHER_COUNTRY_CODE_LABEL "weatherCountryCode"
-#define WM_WEATHER_API_KEY_LABEL "weatherApiKey"
-#define WM_WEATHER_UNIT_LABEL "weatherUnit"
-#define WEATHER_CONFIG_JSON "/weather_config.json"
-
-char weatherCityName[32];
-char weatherCountryCode[6];
-char weatherApikey[64];
-char weatherUnit[2] = "0";
-
-bool weatherConfigExist = false;
-
 uint8_t selectedTheme;
 uint8_t currentlyRunningTheme;
 
@@ -768,144 +125,11 @@ void loadPreferences()
   selectedTheme = preferences.getUInt(PREF_SELECTED_THEME, AUDIO_VISUALIZER_THEME);
 }
 
-void fetchWeatherConfigFile()
-{
-  if (SPIFFS.exists(WEATHER_CONFIG_JSON))
-  {
-    // file exists, reading and loading
-    File configFile = SPIFFS.open(WEATHER_CONFIG_JSON, "r");
-    if (configFile)
-    {
-      StaticJsonDocument<512> json;
-      DeserializationError error = deserializeJson(json, configFile);
-      serializeJsonPretty(json, Serial);
-      if (!error)
-      {
-        if (json.containsKey(WM_WEATHER_CITY_NAME_LABEL) && json.containsKey(WM_WEATHER_COUNTRY_CODE_LABEL) && json.containsKey(WM_WEATHER_API_KEY_LABEL) && json.containsKey(WM_WEATHER_UNIT_LABEL))
-        {
-          const char *tempCityName = json[WM_WEATHER_CITY_NAME_LABEL];
-          const char *tempCountryCode = json[WM_WEATHER_COUNTRY_CODE_LABEL];
-          const char *tempApiKey = json[WM_WEATHER_API_KEY_LABEL];
-          const char *tempUnit = json[WM_WEATHER_UNIT_LABEL];
-
-          // Ensure null-termination and copy to plexServerIp and plexServerToken
-          strlcpy(weatherCityName, tempCityName, sizeof(weatherCityName));
-          strlcpy(weatherCountryCode, tempCountryCode, sizeof(weatherCountryCode));
-          strlcpy(weatherApikey, tempApiKey, sizeof(weatherApikey));
-          strlcpy(weatherUnit, tempUnit, sizeof(weatherUnit));
-
-#ifdef DEBUG
-          Serial.println("Weather City Name: " + String(weatherCityName));
-          Serial.println("Weather Country Code: " + String(weatherCountryCode));
-          Serial.println("Weather API Key: " + String(weatherApikey));
-#endif
-
-          weatherConfigExist = true;
-        }
-        else
-        {
-          Serial.println("Config missing Weather credentials");
-        }
-      }
-      else
-      {
-        Serial.println("failed to load json config");
-      }
-      configFile.close();
-    }
-    else
-    {
-      Serial.println("Failed to open config file");
-    }
-  }
-  else
-  {
-    Serial.println("Config file does not exist");
-  }
-}
-
-// Save Plex config to SPIFF
-void saveWeatherConfig(const char *cityName, const char *countryCode, const char *apiKey, const char *unit)
-{
-  Serial.println(F("Saving config"));
-  StaticJsonDocument<512> json;
-  json[WM_WEATHER_CITY_NAME_LABEL] = cityName;       // Assigning C-style strings directly
-  json[WM_WEATHER_COUNTRY_CODE_LABEL] = countryCode; // Assigning C-style strings directly
-  json[WM_WEATHER_API_KEY_LABEL] = apiKey;           // Assigning C-style strings directly
-  json[WM_WEATHER_UNIT_LABEL] = unit;                // Assigning C-style strings directly
-
-  File configFile = SPIFFS.open(WEATHER_CONFIG_JSON, "w");
-  if (!configFile)
-  {
-    Serial.println("failed to open config file for writing");
-    return; // Exit the function early if file opening fails
-  }
-
-  serializeJsonPretty(json, Serial);
-  if (serializeJson(json, configFile) == 0)
-  {
-    Serial.println(F("Failed to write to file"));
-  }
-  configFile.close();
-}
-
 #pragma endregion
 // ******************************************* END PREFERENCES ************************************************
 
-#ifdef AV
 // ******************************************* BEGIN CLOCK ****************************************************
 #pragma region CLOCK
-
-#include "time.h"
-
-String getLocalTimeFromUnix(float unixTime)
-{
-  time_t unixTime_t = static_cast<time_t>(unixTime); // Convert int to time_t
-  struct tm *timeinfo = localtime(&unixTime_t);      // Convert time_t to struct tm
-  if (timeinfo == nullptr)
-  {
-    return ""; // Error handling if conversion fails
-  }
-
-  char buffer[20];
-
-  if (strcmp(weatherUnit, "0") == 0) // imperial
-  {
-    strftime(buffer, sizeof(buffer), "%l:%M%P", timeinfo);
-  }
-  else
-  {
-    strftime(buffer, sizeof(buffer), "%H:%M", timeinfo);
-  }
-  String localTime = String(buffer);
-  return localTime;
-}
-
-String getLocalTimeAndDate()
-{
-  struct tm timeinfo;
-  if (!getLocalTime(&timeinfo))
-  {
-#ifdef DEBUG
-    Serial.println("Failed to obtain time");
-#endif
-
-    return "";
-  }
-  char buffer[20];
-
-  if (strcmp(weatherUnit, "0") == 0) // imperial
-  {
-    strftime(buffer, sizeof(buffer), "%l:%M%P  %b %d", &timeinfo);
-  }
-  else
-  {
-    strftime(buffer, sizeof(buffer), "%H:%M  %b %d", &timeinfo);
-  }
-
-  String localTime = String(buffer);
-  return localTime;
-}
 
 void getDateAndTime()
 {
@@ -1007,176 +231,22 @@ void printTemperature(const char *icon, const char *buf, int x, int y, uint16_t 
   dma_display->drawCircle(circleX, circleY, 1, textColor);
 }
 
-std::string degreesToDirection(int degrees)
+void displayWeatherData(WeatherData data)
 {
-  std::string direction;
-  int val = (degrees / 22.5) + 0.5;
-  switch (val % 16)
-  {
-  case 0:
-  case 15:
-    direction = "N";
-    break;
-  case 1:
-  case 2:
-    direction = "NNE";
-    break;
-  case 3:
-  case 4:
-    direction = "NE";
-    break;
-  case 5:
-  case 6:
-    direction = "ENE";
-    break;
-  case 7:
-  case 8:
-    direction = "E";
-    break;
-  case 9:
-  case 10:
-    direction = "ESE";
-    break;
-  case 11:
-  case 12:
-    direction = "SE";
-    break;
-  case 13:
-  case 14:
-    direction = "SSE";
-    break;
-  default:
-    direction = "";
-  }
-  return direction;
-}
+  printCenter(data.cityName.c_str(), 13, myORANGE);
 
-String getWeatherUnit()
-{
-  if (strcmp(weatherUnit, "1") == 0)
-  {
-    return "metric";
-  }
-  else if (strcmp(weatherUnit, "2") == 0)
-  {
-    return "standard";
-  }
-  else
-  {
-    return "imperial";
-  }
-}
+  printTemperature(data.weatherIcon, data.temperature.c_str(), 22, 35, myGREEN, FreeSerifBold9pt7b);
 
-void processWeatherJson(const char *response)
-{
-  // we need the timezone to setup the Time
-  float timezone = extractFloatValue(response, "\"timezone\"");
-  configTime(long(timezone), 0, "pool.ntp.org"); // DST offset is set to zero, no need since timezone accounts for it.
+  printLeft(data.feelsLike.c_str(), 5, 47, myPURPLE);
+  printLeft(data.humidity.c_str(), 5, 54, myGOLD);
 
-  if (selectedTheme == WEATHER_STATION_THEME)
-  {
-    std::string tempUnit = "";
-    std::string pressureUnit = "hPa";
-    std::string windUnit = "";
+  printLeft(data.tempMin.c_str(), 40, 47, myCYAN);
+  printLeft(data.tempMax.c_str(), 40, 54, myRED);
 
-    if (strcmp(weatherUnit, "1") == 0)
-    {
-      // metric
-      tempUnit = "C";
-      windUnit = "m/s";
-    }
-    else if (strcmp(weatherUnit, "2") == 0)
-    {
-      // standard
-      tempUnit = "K";
-      windUnit = "m/s";
-    }
-    else
-    {
-      // imperial
-      tempUnit = "F";
-      windUnit = "MPH";
-    }
+  lowerScrollingText = data.extraInfo.c_str();
 
-    const char *description = extractStringValue(response, "\"description\"", "Unknown");
-    // printf("Weather Description: %s\n", description);
-    std::string uppercasedDescription = toUpperCase(description);
-
-    const char *icon = extractStringValue(response, "\"icon\"", "??");
-    // printf("Weather Icon: %s\n", icon);
-
-    float temp = extractFloatValue(response, "\"temp\"");
-    // printf("Temperature: %.2f\n", temp);
-    int tempInt = (int)temp;
-    std::string tempString = std::to_string(tempInt);
-
-    float feelsLike = extractFloatValue(response, "\"feels_like\"");
-    // printf("Temperature min: %.2f\n", temp_min);
-    int feelsLikeInt = (int)feelsLike;
-    std::string feelsLikeString = "FL: " + std::to_string(feelsLikeInt) + tempUnit;
-
-    float temp_min = extractFloatValue(response, "\"temp_min\"");
-    // printf("Temperature min: %.2f\n", temp_min);
-    int tempMinInt = (int)temp_min;
-    std::string tempMinString = "L: " + std::to_string(tempMinInt) + tempUnit;
-
-    float temp_max = extractFloatValue(response, "\"temp_max\"");
-    // printf("Temperature max: %.2f\n", temp_max);
-    int tempMaxInt = (int)temp_max;
-    std::string tempMaxString = "H: " + std::to_string(tempMaxInt) + tempUnit;
-
-    float pressure = extractFloatValue(response, "\"pressure\"");
-    // printf("Pressure: %.2f\n", pressure);
-    int pressureInt = (int)pressure;
-    std::string pressureString = "P: " + std::to_string(pressureInt) + pressureUnit;
-
-    float humidity = extractFloatValue(response, "\"humidity\"");
-    // printf("Humidity: %.2f\n", humidity);
-    int humidityInt = (int)humidity;
-    std::string humidityString = "RH: " + std::to_string(humidityInt) + "%";
-
-    float wind_direction = extractFloatValue(response, "\"deg\"");
-    // printf("Wind direction: %.2f\n", wind_direction);
-    int windDirectionInt = (int)wind_direction;
-
-    float wind_speed = extractFloatValue(response, "\"speed\"");
-    // printf("Wind speed: %.2f\n", wind_speed);
-    int windSpeedInt = (int)wind_speed;
-    std::string windString = "Wind: " + degreesToDirection(windDirectionInt) + " " + std::to_string(windSpeedInt) + windUnit;
-
-    float sunrise = extractFloatValue(response, "\"sunrise\"");
-    // printf("sunrise: %.2f\n", sunrise);
-    std::string sunriseValue = getLocalTimeFromUnix(sunrise).c_str();
-    std::string sunriseString = "Sunrise: " + sunriseValue;
-
-    float sunset = extractFloatValue(response, "\"sunset\"");
-    // printf("sunset: %.2f\n", sunset);
-    std::string sunsetValue = getLocalTimeFromUnix(sunset).c_str();
-    std::string sunsetString = "Sunset: " + sunsetValue;
-
-    std::string extraInfo = uppercasedDescription + "    " + sunriseString + "    " + sunsetString + "    " + pressureString + "    " + windString;
-
-    // display the info to LED Matrix
-    String cleanCityName = String(weatherCityName);
-    cleanCityName.replace("%20", " ");
-    std::string uppercasedCityName = toUpperCase(cleanCityName.c_str());
-    printCenter(uppercasedCityName.c_str(), 13, myORANGE);
-
-    printTemperature(icon, tempString.c_str(), 22, 35, myGREEN, FreeSerifBold9pt7b);
-
-    printLeft(feelsLikeString.c_str(), 5, 47, myPURPLE);
-    printLeft(humidityString.c_str(), 5, 54, myGOLD);
-
-    printLeft(tempMinString.c_str(), 40, 47, myCYAN);
-    printLeft(tempMaxString.c_str(), 40, 54, myRED);
-
-    lowerScrollingText = uppercasedDescription.c_str();
-
-    lowerScrollingText = extraInfo.c_str();
-
-    delay(500);
-    getDateAndTime();
-  }
+  delay(500);
+  getDateAndTime();
 }
 
 void getWeatherInfo()
@@ -1199,7 +269,9 @@ void getWeatherInfo()
 #endif
 
       const char *jsonCString = httpResponse.c_str();
-      processWeatherJson(jsonCString);
+      WeatherData data = processWeatherJson(jsonCString);
+      displayWeatherData(data);
+
     } else {
       Serial.print("Error code: ");
       Serial.println(httpCode);
@@ -1208,103 +280,13 @@ void getWeatherInfo()
 
 #pragma endregion
 // ******************************************* END WEATHER ****************************************************
-#endif
 
 // ******************************************* BEGIN PLEX ALBUM ART *******************************************
 #pragma region PLEX_ALBUM_ART
 
-#ifndef AV
-
-#define WM_PLEX_SERVER_IP_LABEL "plexServerIp"
-#define WM_PLEX_SERVER_PORT_LABEL "plexServerPort"
-#define WM_PLEX_SERVER_TOKEN_LABEL "plexServerToken"
-#define PLEX_CONFIG_JSON "/plex_config.json"
-
-char plexServerIp[20];
-char plexServerPort[10];
-char plexServerToken[100];
-
-void fetchPlexConfigFile()
+void downloadPlexAlbumArt(String relativeUrl, String trackTitle, String artistName)
 {
-  if (SPIFFS.exists(PLEX_CONFIG_JSON))
-  {
-    // file exists, reading and loading
-    Serial.println("reading config file");
-    File configFile = SPIFFS.open(PLEX_CONFIG_JSON, "r");
-    if (configFile)
-    {
-      Serial.println("opened config file");
-      StaticJsonDocument<512> json;
-      DeserializationError error = deserializeJson(json, configFile);
-      serializeJsonPretty(json, Serial);
-      if (!error)
-      {
-        if (json.containsKey(WM_PLEX_SERVER_IP_LABEL) && json.containsKey(WM_PLEX_SERVER_PORT_LABEL) && json.containsKey(WM_PLEX_SERVER_TOKEN_LABEL))
-        {
-          const char *tempPlexServerIp = json[WM_PLEX_SERVER_IP_LABEL];
-          const char *tempPlexServerPort = json[WM_PLEX_SERVER_PORT_LABEL];
-          const char *tempPlexServerToken = json[WM_PLEX_SERVER_TOKEN_LABEL];
-
-          // Ensure null-termination and copy to plexServerIp and plexServerToken
-          strlcpy(plexServerIp, tempPlexServerIp, sizeof(plexServerIp));
-          strlcpy(plexServerPort, tempPlexServerPort, sizeof(plexServerPort));
-          strlcpy(plexServerToken, tempPlexServerToken, sizeof(plexServerToken));
-
-#ifdef DEBUG
-          Serial.println("Plex Server IP: " + String(plexServerIp));
-          Serial.println("Plex Server Port: " + String(plexServerPort));
-          Serial.println("Plex Server Token: " + String(plexServerToken));
-#endif
-        }
-        else
-        {
-          Serial.println("Config missing Plex server IP or Port number or Auth token");
-        }
-      }
-      else
-      {
-        Serial.println("failed to load json config");
-      }
-      configFile.close();
-    }
-    else
-    {
-      Serial.println("Failed to open config file");
-    }
-  }
-  else
-  {
-    Serial.println("Config file does not exist");
-  }
-}
-
-// Save Plex config to SPIFF
-void savePlexConfig(const char *serverIp, const char *serverPort, const char *serverToken)
-{
-  Serial.println(F("Saving config"));
-  StaticJsonDocument<512> json;
-  json[WM_PLEX_SERVER_IP_LABEL] = serverIp;       // Assigning C-style strings directly
-  json[WM_PLEX_SERVER_PORT_LABEL] = serverPort;   // Assigning C-style strings directly
-  json[WM_PLEX_SERVER_TOKEN_LABEL] = serverToken; // Assigning C-style strings directly
-
-  File configFile = SPIFFS.open(PLEX_CONFIG_JSON, "w");
-  if (!configFile)
-  {
-    Serial.println("failed to open config file for writing");
-    return; // Exit the function early if file opening fails
-  }
-
-  serializeJsonPretty(json, Serial);
-  if (serializeJson(json, configFile) == 0)
-  {
-    Serial.println(F("Failed to write to file"));
-  }
-  configFile.close();
-}
-
-void downloadPlexAlbumArt(const char *relativeUrl, const char *trackTitle, const char *artistName)
-{
-  String imageUrl = "http://" + String(plexServerIp) + ":" + String(plexServerPort) + "/photo/:/transcode?width=48&height=48&url=" + String(relativeUrl);
+  String imageUrl = "http://" + String(plexServerIp) + ":" + String(plexServerPort) + "/photo/:/transcode?width=48&height=48&url=" + relativeUrl;
   String headerKey = "X-Plex-Token";
   String headerValue = plexServerToken;
 
@@ -1338,109 +320,6 @@ void downloadPlexAlbumArt(const char *relativeUrl, const char *trackTitle, const
     } });
 }
 
-void processPlexResponse(const String &payload)
-{
-  // Parse the XML response to get the last track title, artist name, and thumbnail URL
-
-  int playerStateIndex = payload.indexOf("state=\"");
-
-  String playerState = "";
-  if (playerStateIndex != -1)
-  {
-    int stateStartIndex = playerStateIndex + 7; // Length of "state=\""
-    int stateEndIndex = payload.indexOf("\"", stateStartIndex);
-    playerState = payload.substring(stateStartIndex, stateEndIndex);
-  }
-
-  int lastTrackIndex = payload.lastIndexOf("<Track ");
-  if (lastTrackIndex != -1 && playerState == "playing")
-  {
-    // Extract the last track XML block
-    int trackEndIndex = payload.indexOf("</Track>", lastTrackIndex);
-    String trackXML = payload.substring(lastTrackIndex, trackEndIndex);
-    // Extract the track title
-    int titleIndex = trackXML.indexOf("title=\"");
-    if (titleIndex != -1)
-    {
-      int titleStartIndex = titleIndex + 7; // Length of "title=\""
-      int titleEndIndex = trackXML.indexOf("\"", titleStartIndex);
-      String trackTitle = trackXML.substring(titleStartIndex, titleEndIndex);
-      // Extract the artist name
-      int artistIndex = trackXML.indexOf("grandparentTitle=\"");
-      if (artistIndex != -1)
-      {
-        int artistStartIndex = artistIndex + 18; // Length of "grandparentTitle=\""
-        int artistEndIndex = trackXML.indexOf("\"", artistStartIndex);
-        String artistName = trackXML.substring(artistStartIndex, artistEndIndex);
-        // Extract the thumbnail URL
-        int thumbIndex = trackXML.indexOf("thumb=\"");
-        if (thumbIndex != -1)
-        {
-          int thumbStartIndex = thumbIndex + 7; // Length of "thumb=\""
-          int thumbEndIndex = trackXML.indexOf("\"", thumbStartIndex);
-          String coverArtURL = trackXML.substring(thumbStartIndex, thumbEndIndex);
-          // Display or use the last track title, artist name, and thumbnail URL as needed
-          if (!trackTitle.isEmpty() && !artistName.isEmpty() && !coverArtURL.isEmpty())
-          {
-#ifdef DEBUG
-            Serial.println("Last Track Title: " + trackTitle);
-            Serial.println("Artist Name: " + artistName);
-            Serial.println("Last Thumbnail URL: " + coverArtURL);
-#endif
-
-            String cleanTrackTitle = decodeHtmlEntities(trackTitle);
-            char trackTitleCharArray[cleanTrackTitle.length() + 1];
-            cleanTrackTitle.toCharArray(trackTitleCharArray, cleanTrackTitle.length() + 1);
-
-            String cleanArtistName = decodeHtmlEntities(artistName);
-            char artistNameCharArray[cleanArtistName.length() + 1];
-            cleanArtistName.toCharArray(artistNameCharArray, artistName.length() + 1);
-
-            // Check if the current album art URL is different from the last one
-            if (coverArtURL != lastAlbumArtURL)
-            {
-              // Delete old cover art
-              deleteAlbumArt();
-
-              // Allocate a character array with extra space for null-terminator
-              char coverArtCharArray[coverArtURL.length() + 1];
-
-              // Copy the content of the String to the char array
-              coverArtURL.toCharArray(coverArtCharArray, coverArtURL.length() + 1);
-
-              // Download and save the thumbnail image
-              downloadPlexAlbumArt(coverArtCharArray, trackTitleCharArray, artistNameCharArray);
-              lastAlbumArtURL = coverArtURL; // Update the last downloaded album art URL
-            }
-            else
-            {
-#ifdef DEBUG
-              Serial.println("Album art hasn't changed. Skipping download.");
-#endif
-
-              // Trigger scrolling song title
-              scrollingText = trackTitleCharArray;
-              lowerScrollingText = artistNameCharArray;
-            }
-          }
-          else
-          {
-            Serial.println("Incomplete information for the last played song.");
-          }
-        }
-      }
-    }
-  }
-  else if (lastAlbumArtURL != "")
-  {
-    displayMusicPaused();
-  }
-  else
-  {
-    displayNoTrackPlaying();
-  }
-}
-
 void getPlexCurrentTrack()
 {
   String apiUrl = "http://" + String(plexServerIp) + ":" + String(plexServerPort) + "/status/sessions";
@@ -1453,13 +332,40 @@ void getPlexCurrentTrack()
             Serial.println("plex http code: " + httpCode);
 #endif
     if (httpCode == HTTP_CODE_OK) {
-      processPlexResponse(response);
+      PlexData data = processPlexResponse(response);
+            // Check if the current album art URL is different from the last one
+            String coverArtUrl = data.artUrl;
+            String trackTitle = data.trackTitle;
+            String artistName = data.artistName;
+
+            if (coverArtUrl != "")
+            {
+                displayMusicPaused();
+            }
+            else if (coverArtUrl != lastAlbumArtURL)
+            {
+              // Delete old cover art
+              deleteAlbumArt();
+
+              // Download and save the thumbnail image
+              downloadPlexAlbumArt(coverArtUrl, trackTitle, artistName);
+              lastAlbumArtURL = coverArtUrl; // Update the last downloaded album art URL
+            }
+            else
+            {
+#ifdef DEBUG
+              Serial.println("Album art hasn't changed. Skipping download.");
+#endif
+
+              // Trigger scrolling song title
+              scrollingText = trackTitle;
+              lowerScrollingText = artistName;
+            }
+
     } else {
       displayNoTrackPlaying();
     } });
 }
-
-#endif
 
 #pragma endregion
 // ******************************************* END PLEX ALBUM ART *********************************************
@@ -1467,21 +373,9 @@ void getPlexCurrentTrack()
 // ******************************************* BEGIN SPOTIFY ALBUM ART ****************************************
 #pragma region SPOTIFY_ALBUM_ART
 
-#ifndef AV
+#ifdef SPOTIFY_MODE
 
 #include <base64.h>
-
-#define WM_SPOTIFY_CLIENT_ID_LABEL "spotifyClientId"
-#define WM_SPOTIFY_CLIENT_SECRET_LABEL "spotifyClientSecret"
-#define WM_SPOTIFY_REFRESH_TOKEN_LABEL "spotifyRefreshToken"
-#define SPOTIFY_CONFIG_JSON "/spotify_config.json"
-
-char spotifyClientId[64];
-char spotifyClientSecret[64];
-char spotifyRefreshToken[200];
-
-char spotifyImageUrl[128];      // Assuming the URL won't exceed 128 characters
-char refreshedAccessToken[256]; // Adjust the size as needed
 
 void getRefreshToken()
 {
@@ -1550,83 +444,6 @@ void getRefreshToken()
   http.end();
 }
 
-void fetchSpotifyConfigFile()
-{
-  if (SPIFFS.exists(SPOTIFY_CONFIG_JSON))
-  {
-    // file exists, reading and loading
-    Serial.println("reading config file");
-    File configFile = SPIFFS.open(SPOTIFY_CONFIG_JSON, "r");
-    if (configFile)
-    {
-      Serial.println("opened config file");
-      StaticJsonDocument<512> json;
-      DeserializationError error = deserializeJson(json, configFile);
-      serializeJsonPretty(json, Serial);
-      if (!error)
-      {
-        if (json.containsKey(WM_SPOTIFY_CLIENT_ID_LABEL) && json.containsKey(WM_SPOTIFY_CLIENT_SECRET_LABEL) && json.containsKey(WM_SPOTIFY_REFRESH_TOKEN_LABEL))
-        {
-          const char *tempSpotifyClientId = json[WM_SPOTIFY_CLIENT_ID_LABEL];
-          const char *tempSpotifyClientSecret = json[WM_SPOTIFY_CLIENT_SECRET_LABEL];
-          const char *tempSpotifyRefreshToken = json[WM_SPOTIFY_REFRESH_TOKEN_LABEL];
-
-          // Ensure null-termination and copy to plexServerIp and plexServerToken
-          strlcpy(spotifyClientId, tempSpotifyClientId, sizeof(spotifyClientId));
-          strlcpy(spotifyClientSecret, tempSpotifyClientSecret, sizeof(spotifyClientSecret));
-          strlcpy(spotifyRefreshToken, tempSpotifyRefreshToken, sizeof(spotifyRefreshToken));
-#ifdef DEBUG
-          Serial.println("Spotify Client ID: " + String(spotifyClientId));
-          Serial.println("Spotify Client Secret: " + String(spotifyClientSecret));
-          Serial.println("Spotify Refresh Token: " + String(spotifyRefreshToken));
-#endif
-        }
-        else
-        {
-          Serial.println("Config missing Spotify credentials");
-        }
-      }
-      else
-      {
-        Serial.println("failed to load json config");
-      }
-      configFile.close();
-    }
-    else
-    {
-      Serial.println("Failed to open config file");
-    }
-  }
-  else
-  {
-    Serial.println("Config file does not exist");
-  }
-}
-
-// Save Plex config to SPIFF
-void saveSpotifyConfig(const char *clientId, const char *clientSecret, const char *refreshToken)
-{
-  Serial.println(F("Saving config"));
-  StaticJsonDocument<512> json;
-  json[WM_SPOTIFY_CLIENT_ID_LABEL] = clientId;         // Assigning C-style strings directly
-  json[WM_SPOTIFY_CLIENT_SECRET_LABEL] = clientSecret; // Assigning C-style strings directly
-  json[WM_SPOTIFY_REFRESH_TOKEN_LABEL] = refreshToken; // Assigning C-style strings directly
-
-  File configFile = SPIFFS.open(SPOTIFY_CONFIG_JSON, "w");
-  if (!configFile)
-  {
-    Serial.println("failed to open config file for writing");
-    return; // Exit the function early if file opening fails
-  }
-
-  serializeJsonPretty(json, Serial);
-  if (serializeJson(json, configFile) == 0)
-  {
-    Serial.println(F("Failed to write to file"));
-  }
-  configFile.close();
-}
-
 void downloadSpotifyAlbumArt(String imageUrl)
 {
   if (imageUrl == lastAlbumArtURL)
@@ -1690,10 +507,12 @@ void processSpotifyJson(const char *response)
       // Check if it's 'true' or 'false'
       if (strncmp(isPlayingStart, "true", 4) == 0)
       {
+        //no-op
       }
       else if (strncmp(isPlayingStart, "false", 5) == 0)
       {
         // music player is paused.
+        getDateAndTime();
         displayMusicPaused();
         return;
       }
@@ -1703,7 +522,7 @@ void processSpotifyJson(const char *response)
   if (nameKeyStart == nullptr)
   {
     Serial.println("*******Null name key, nothing to process");
-    displayNoTrackPlaying();
+    getWeatherInfo();
     return;
   }
 
@@ -1827,7 +646,7 @@ void getSpotifyCurrentTrack()
       displayNoTrackPlaying();
     } else if (httpCode == HTTP_CODE_OK) {
       // Escape double quotes
-      String escapedResponse = escapeSpecialCharacters(response);
+      String escapedResponse = HelperFunctions::escapeSpecialCharacters(response);
 
       // Convert to const char*
       const char *jsonCString = escapedResponse.c_str();
@@ -1846,7 +665,7 @@ void getSpotifyCurrentTrack()
 // ******************************************* BEGIN AUDIO VISUALIZER *****************************************
 #pragma region AUDIO_VISUALIZER
 
-#ifdef AV
+#ifdef AV_MODE
 
 #include <FastLED_NeoMatrix.h>
 #include <arduinoFFT.h>
@@ -2362,14 +1181,15 @@ void processRequest(WiFiClient client, String method, String path, String key, S
       return;
     }
 
-#ifdef AV
+#ifdef AV_MODE
     if (key == PREF_AV_PATTERN)
     {
       client.println("HTTP/1.0 204 No Content");
       updateAudioVisualizerSettings(value.toInt());
       return;
     }
-#else
+#endif
+
     if (key == PREF_PLEX_CREDENTIALS)
     {
       String payload = value;
@@ -2449,7 +1269,6 @@ void processRequest(WiFiClient client, String method, String path, String key, S
       force_restart = true;
       return;
     }
-#endif
   }
 }
 
@@ -2549,7 +1368,12 @@ void setup()
 
   printCenter("TUNEFRAME", 30);
 
-  wifiConnect();
+  if (!wifiConnect())
+  {
+    printCenter("FAILED to Connect", 30);
+    restartDevice();
+    return;
+  }
 
   while (!isConnected())
   {
@@ -2564,6 +1388,7 @@ void setup()
       printCenter("WiFi FAILED", 20);
       printCenter(" Restarting", 30);
       restartDevice();
+      return;
     }
   }
 
@@ -2580,102 +1405,111 @@ void setup()
   clearScreen();
   Serial.println("\r\nInitialisation done.");
 
-#ifdef AV
-  if (selectedTheme == PLEX_ALBUM_ART_THEME || selectedTheme == SPOTIFY_ALBUM_ART_THEME)
+#ifdef WEATHERCLOCK_MODE
+  // get the weather
+  fetchWeatherConfigFile();
+  if (weatherConfigExist)
   {
-    Serial.print("will update firmware to TuneFrameAlbumArt_Firmware");
-    // update firmware to canvas
-    WiFiClientSecure client;
-    client.setInsecure();
-
-    // Reading data over SSL may be slow, use an adequate timeout
-    client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
-
-    printCenter(ipAddressString, 10, myBLUE);
-    printCenter("Loading..", 20, myORANGE);
-    printCenter("COVER ART", 30, myPURPLE);
-
-    httpUpdate.onProgress(update_progress);
-
-    t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/TUNEFRAME/main/binFiles/TuneFrameAlbumArt_Firmware.bin");
-
-    switch (ret)
-    {
-    case HTTP_UPDATE_FAILED:
-      Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
-      break;
-
-    case HTTP_UPDATE_NO_UPDATES:
-      Serial.println("HTTP_UPDATE_NO_UPDATES");
-      break;
-
-    case HTTP_UPDATE_OK:
-      Serial.println("HTTP_UPDATE_OK");
-      break;
-    }
-    return;
+    getWeatherInfo();
   }
   else
   {
-    // Setup audio visualizer
-    setupI2S();
-
-    // get the weather
-    fetchWeatherConfigFile();
-    if (weatherConfigExist)
-    {
-      getWeatherInfo();
-    }
-    else
-    {
-      displayCheckWeatherCredentials();
-    }
-  }
-#else
-  if (selectedTheme == PLEX_ALBUM_ART_THEME)
-  {
-    fetchPlexConfigFile();
-  }
-  else if (selectedTheme == SPOTIFY_ALBUM_ART_THEME)
-  {
-    fetchSpotifyConfigFile();
-    getRefreshToken();
-  }
-  else if (selectedTheme == WEATHER_STATION_THEME || selectedTheme == AUDIO_VISUALIZER_THEME)
-  {
-    Serial.print("will update firmware to TuneFrameAV_Firmware");
-    // update firmware to canvas
-    WiFiClientSecure client;
-    client.setInsecure();
-
-    // Reading data over SSL may be slow, use an adequate timeout
-    client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
-
-    printCenter(ipAddressString, 10, myBLUE);
-    printCenter("Loading..", 20, myORANGE);
-    printCenter("MUSIC VISUALIZER", 30, myPURPLE);
-
-    httpUpdate.onProgress(update_progress);
-
-    t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/TUNEFRAME/main/binFiles/TuneFrameAV_Firmware.bin");
-
-    switch (ret)
-    {
-    case HTTP_UPDATE_FAILED:
-      Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
-      break;
-
-    case HTTP_UPDATE_NO_UPDATES:
-      Serial.println("HTTP_UPDATE_NO_UPDATES");
-      break;
-
-    case HTTP_UPDATE_OK:
-      Serial.println("HTTP_UPDATE_OK");
-      break;
-    }
-    return;
+    displayCheckWeatherCredentials();
   }
 #endif
+
+#ifdef AV_MODE
+  // Setup audio visualizer
+  setupI2S();
+#endif
+
+#ifdef PLEXAMP_MODE
+  fetchPlexConfigFile();
+#endif
+
+#ifdef SPOTIFY_MODE
+  fetchSpotifyConfigFile();
+  getRefreshToken();
+#endif
+
+  // if (selectedTheme == PLEX_ALBUM_ART_THEME || selectedTheme == SPOTIFY_ALBUM_ART_THEME)
+  // {
+  //   Serial.print("will update firmware to TuneFrameAlbumArt_Firmware");
+  //   // update firmware to canvas
+  //   WiFiClientSecure client;
+  //   client.setInsecure();
+
+  //   // Reading data over SSL may be slow, use an adequate timeout
+  //   client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
+
+  //   printCenter(ipAddressString, 10, myBLUE);
+  //   printCenter("Loading..", 20, myORANGE);
+  //   printCenter("COVER ART", 30, myPURPLE);
+
+  //   httpUpdate.onProgress(update_progress);
+
+  //   t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/TUNEFRAME/main/binFiles/TuneFrameAlbumArt_Firmware.bin");
+
+  //   switch (ret)
+  //   {
+  //   case HTTP_UPDATE_FAILED:
+  //     Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+  //     break;
+
+  //   case HTTP_UPDATE_NO_UPDATES:
+  //     Serial.println("HTTP_UPDATE_NO_UPDATES");
+  //     break;
+
+  //   case HTTP_UPDATE_OK:
+  //     Serial.println("HTTP_UPDATE_OK");
+  //     break;
+  //   }
+  //   return;
+  // }
+
+  // if (selectedTheme == PLEX_ALBUM_ART_THEME)
+  // {
+  //   fetchPlexConfigFile();
+  // }
+  // else if (selectedTheme == SPOTIFY_ALBUM_ART_THEME)
+  // {
+  //   fetchSpotifyConfigFile();
+  //   getRefreshToken();
+  // }
+  // else if (selectedTheme == WEATHER_STATION_THEME || selectedTheme == AUDIO_VISUALIZER_THEME)
+  // {
+  //   Serial.print("will update firmware to TuneFrameAV_Firmware");
+  //   // update firmware to canvas
+  //   WiFiClientSecure client;
+  //   client.setInsecure();
+
+  //   // Reading data over SSL may be slow, use an adequate timeout
+  //   client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
+
+  //   printCenter(ipAddressString, 10, myBLUE);
+  //   printCenter("Loading..", 20, myORANGE);
+  //   printCenter("MUSIC VISUALIZER", 30, myPURPLE);
+
+  //   httpUpdate.onProgress(update_progress);
+
+  //   t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/TUNEFRAME/main/binFiles/TuneFrameAV_Firmware.bin");
+
+  //   switch (ret)
+  //   {
+  //   case HTTP_UPDATE_FAILED:
+  //     Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+  //     break;
+
+  //   case HTTP_UPDATE_NO_UPDATES:
+  //     Serial.println("HTTP_UPDATE_NO_UPDATES");
+  //     break;
+
+  //   case HTTP_UPDATE_OK:
+  //     Serial.println("HTTP_UPDATE_OK");
+  //     break;
+  //   }
+  //   return;
+  // }
 
   server.begin();
 }
@@ -2686,11 +1520,10 @@ void loop()
   {
     handleHttpRequest();
 
-#ifdef AV
-    unsigned long currentMillis = millis();
-
-    if (selectedTheme == WEATHER_STATION_THEME && weatherConfigExist)
+#ifdef WEATHERCLOCK_MODE
+    if (weatherConfigExist)
     {
+      unsigned long currentMillis = millis();
 
       if (currentMillis - lastClockUpdateTime >= clockUpdateInterval)
       {
@@ -2706,39 +1539,65 @@ void loop()
       printScrolling(scrollingText.c_str(), 5, myBLUE);
       printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
     }
-    else
-    {
-      // Default to audio visualizer
-      loopAudioVisualizer();
-    }
-#else
-    // Check album art every 5 seconds
+#endif
+
+#ifdef AV_MODE
+    loopAudioVisualizer();
+#endif
+
+#ifdef PLEXAMP_MODE
     unsigned long currentMillis = millis();
 
-    if (selectedTheme == PLEX_ALBUM_ART_THEME)
+    if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval)
     {
-      if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval)
-      {
-        lastAlbumArtUpdateTime = currentMillis;
-        getPlexCurrentTrack();
-      }
+      lastAlbumArtUpdateTime = currentMillis;
+      getPlexCurrentTrack();
     }
-    else if (selectedTheme == SPOTIFY_ALBUM_ART_THEME)
-    {
-      if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval)
-      {
-        lastAlbumArtUpdateTime = currentMillis;
-        getSpotifyCurrentTrack();
-        if (strlen(spotifyImageUrl) > 0)
-        {
-          downloadSpotifyAlbumArt(String(spotifyImageUrl));
-        }
-      }
-    }
+    printScrolling(scrollingText.c_str(), 5, myBLUE);
+    printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
 
+#endif
+
+#ifdef SPOTIFY_MODE
+    unsigned long currentMillis = millis();
+
+    if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval)
+    {
+      lastAlbumArtUpdateTime = currentMillis;
+      getSpotifyCurrentTrack();
+
+      if (strlen(spotifyImageUrl) > 0)
+      {
+        downloadSpotifyAlbumArt(String(spotifyImageUrl));
+      }
+    }
     printScrolling(scrollingText.c_str(), 5, myBLUE);
     printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
 #endif
+
+    //   if (selectedTheme == PLEX_ALBUM_ART_THEME)
+    //   {
+    //     if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval)
+    //     {
+    //       lastAlbumArtUpdateTime = currentMillis;
+    //       getPlexCurrentTrack();
+    //     }
+    //   }
+    //   else if (selectedTheme == SPOTIFY_ALBUM_ART_THEME)
+    //   {
+    //     if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval)
+    //     {
+    //       lastAlbumArtUpdateTime = currentMillis;
+    //       getSpotifyCurrentTrack();
+    //       if (strlen(spotifyImageUrl) > 0)
+    //       {
+    //         downloadSpotifyAlbumArt(String(spotifyImageUrl));
+    //       }
+    //     }
+    //   }
+
+    //   printScrolling(scrollingText.c_str(), 5, myBLUE);
+    //   printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
   }
 }
 
