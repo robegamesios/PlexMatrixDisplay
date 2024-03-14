@@ -17,9 +17,41 @@
 // ******************************************* BEGIN GLOBAL VARS AND COMMON FUNC ******************************
 #pragma region GLOBAL_VARS_AND_UTILS
 
+uint8_t selectedTheme;
+uint8_t currentlyRunningTheme;
+
 String scrollingText = "";
 String lowerScrollingText = "";
 String lastAlbumArtURL = ""; // Variable to store the last downloaded album art URL
+
+struct ThemeInfo
+{
+  String title;
+  String filename;
+
+  ThemeInfo(String name, String file)
+      : title(name), filename(file) {}
+};
+
+ThemeInfo getThemeInfo()
+{
+  if (selectedTheme == WEATHER_STATION_THEME)
+  {
+    return ThemeInfo("WEATHER CLOCK", "weatherclock_FW");
+  }
+  else if (selectedTheme == AUDIO_VISUALIZER_THEME)
+  {
+    return ThemeInfo("MUSIC VISUALIZER", "musicVisualizer_FW");
+  }
+  else if (selectedTheme == PLEX_ALBUM_ART_THEME)
+  {
+    return ThemeInfo("PlEXAMP ART", "plexArt_FW");
+  }
+  else if (selectedTheme == SPOTIFY_ALBUM_ART_THEME)
+  {
+    return ThemeInfo("SPOTIFY ART", "spotifyArt_FW");
+  }
+}
 
 void resetAlbumArtVariables()
 {
@@ -124,9 +156,6 @@ const char *PREF_GIF_ART_NAME = "gifArtName";
 const char *PREF_WEATHER_STATION_CREDENTIALS = "weatherStationCredentials";
 const char *PREF_PLEX_CREDENTIALS = "plexCredentials";
 const char *PREF_SPOTIFY_CREDENTIALS = "spotifyCredentials";
-
-uint8_t selectedTheme;
-uint8_t currentlyRunningTheme;
 
 void savePreferences()
 {
@@ -1279,6 +1308,60 @@ void setup()
   Serial.println("\r\nInitialisation done.");
 
 #ifdef WEATHERCLOCK_MODE
+#define CURRENT_ENV WEATHER_STATION_THEME
+#elif defined(AV_MODE)
+#define CURRENT_ENV AUDIO_VISUALIZER_THEME
+
+#elif defined(PLEXAMP_MODE)
+#define CURRENT_ENV PLEX_ALBUM_ART_THEME
+
+#elif defined(SPOTIFY_MODE)
+#define CURRENT_ENV SPOTIFY_ALBUM_ART_THEME
+
+#endif
+
+  if (selectedTheme != CURRENT_ENV)
+  {
+    Serial.print("starting update of TuneFrame Firmware");
+    // update firmware to canvas
+    WiFiClientSecure client;
+    client.setInsecure();
+
+    // Reading data over SSL may be slow, use an adequate timeout
+    client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
+
+    printCenter(ipAddressString, 10, myBLUE);
+    printCenter("Loading..", 20, myORANGE);
+    String title = getThemeInfo().title;
+    String filename = getThemeInfo().filename;
+    printCenter(title.c_str(), 30, myPURPLE);
+
+    httpUpdate.onProgress(update_progress);
+
+    String baseUrl = "https://raw.githubusercontent.com/robegamesios/TUNEFRAME/main/binFiles/";
+
+    String branchUrl = "https://github.com/robegamesios/TUNEFRAME/blob/feature/batch_weather_and_AV/binFiles/";
+
+    t_httpUpdate_return ret = httpUpdate.update(client, branchUrl + filename);
+
+    switch (ret)
+    {
+    case HTTP_UPDATE_FAILED:
+      Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+      break;
+
+    case HTTP_UPDATE_NO_UPDATES:
+      Serial.println("HTTP_UPDATE_NO_UPDATES");
+      break;
+
+    case HTTP_UPDATE_OK:
+      Serial.println("HTTP_UPDATE_OK");
+      break;
+    }
+    return;
+  }
+
+#ifdef WEATHERCLOCK_MODE
   // get the weather
   if (fetchWeatherConfigFile())
   {
@@ -1307,7 +1390,7 @@ void setup()
   {
     getSpotifyRefreshToken();
   }
-  else 
+  else
   {
     displayCheckSpotifyCredentials();
   }
