@@ -1340,9 +1340,11 @@ void setup()
 
     String baseUrl = "https://raw.githubusercontent.com/robegamesios/TUNEFRAME/main/binFiles/";
 
-    String branchUrl = "https://github.com/robegamesios/TUNEFRAME/blob/feature/batch_weather_and_AV/binFiles/";
+    String branchUrl = "https://raw.githubusercontent.com/robegamesios/TUNEFRAME/feature/batch_weather_and_AV/binFiles/";
 
-    t_httpUpdate_return ret = httpUpdate.update(client, branchUrl + filename);
+    String firmwareUrl = branchUrl + filename + ".bin";
+
+    t_httpUpdate_return ret = httpUpdate.update(client, firmwareUrl);
 
     switch (ret)
     {
