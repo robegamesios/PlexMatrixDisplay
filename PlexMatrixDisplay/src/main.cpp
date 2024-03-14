@@ -132,6 +132,8 @@ void loadPreferences()
 // ******************************************* BEGIN CLOCK ****************************************************
 #pragma region CLOCK
 
+#ifdef WEATHERCLOCK_MODE
+
 void getDateAndTime()
 {
   String localTime = getLocalTimeAndDate();
@@ -278,6 +280,8 @@ void getWeatherInfo()
       Serial.println(httpCode);
     } });
 }
+
+#endif
 
 #pragma endregion
 // ******************************************* END WEATHER ****************************************************
