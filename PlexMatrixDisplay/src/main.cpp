@@ -12,6 +12,7 @@
 #include "WeatherClock.h"
 #include "PlexAmpLogic.h"
 #include "SpotifyLogic.h"
+#include "jRead.h"
 
 // ******************************************* BEGIN GLOBAL VARS AND COMMON FUNC ******************************
 #pragma region GLOBAL_VARS_AND_UTILS
@@ -44,9 +45,9 @@ void displayNoTrackPlaying()
 
   resetAlbumArtVariables();
   clearScreen();
-  printCenter("NO TRACK IS", 20);
-  printCenter("CURRENTLY", 30);
-  printCenter("PLAYING", 40);
+  printCenter("NO TRACK IS", 20, myPURPLE);
+  printCenter("CURRENTLY", 30, myPURPLE);
+  printCenter("PLAYING", 40, myPURPLE);
 }
 
 void displayCheckWeatherCredentials()
@@ -57,8 +58,8 @@ void displayCheckWeatherCredentials()
 
   resetAlbumArtVariables();
   clearScreen();
-  printCenter("CHECK WEATHER", 30);
-  printCenter("CREDENTIALS", 40);
+  printCenter("CHECK WEATHER", 25, myRED);
+  printCenter("CREDENTIALS", 35, myRED);
 }
 
 void displayCheckSpotifyCredentials()
@@ -69,8 +70,8 @@ void displayCheckSpotifyCredentials()
 
   resetAlbumArtVariables();
   clearScreen();
-  printCenter("CHECK SPOTIFY", 30);
-  printCenter("CREDENTIALS", 40);
+  printCenter("CHECK SPOTIFY", 25, myRED);
+  printCenter("CREDENTIALS", 35), myRED;
 }
 
 void displayMusicPaused()
@@ -482,145 +483,47 @@ void downloadSpotifyAlbumArt(String imageUrl)
     } });
 }
 
-void processSpotifyJson(const char *response)
+void processSpotifyJson(const char *pJson)
 {
-  char songName[64]; // Assuming the song name won't exceed 64 characters
-  songName[0] = '\0';
-  char artistName[64]; // Assuming the artist name won't exceed 64 characters
-  artistName[0] = '\0';
-  spotifyImageUrl[0] = '\0';
+  char str[128]; // general use string buffer
+  jRead_string(pJson, "{'item'{'name'", str, 128);
+  String trackTitle = str;
 
-  // Find the start index of the last occurrence of the "name" key
-  const char *nameKeyStart = strstr(response, "\"name\":");
+  jRead_string(pJson, "{'item'{'album'{'artists'[{'name'", str, 128);
+  String artistName = str;
 
-  const char *isPlayingStart = strstr(response, "\"is_playing\"");
-  if (isPlayingStart != nullptr)
+  jRead_string(pJson, "{'item'{'album'{'images'[2{'url'", str, 128);
+  String albumArtUrl = str;
+
+  jRead_string(pJson, "{'is_playing'", str, 128);
+  String isPlaying = str;
+
+#ifdef DEBUG
+  Serial.println("Spotify track title: " + trackTitle);
+  Serial.println("Spotify artist name: " + artistName);
+  Serial.println("Spotify album Art Url: " + albumArtUrl);
+  Serial.println("Spotify is playing: " + isPlaying);
+#endif
+
+  if (isPlaying != "true")
   {
-    // Move to the value part after ":"
-    isPlayingStart = strchr(isPlayingStart, ':');
-
-    if (isPlayingStart != nullptr)
-    {
-      // Move to the actual value
-      isPlayingStart++;
-
-      // Check if it's 'true' or 'false'
-      if (strncmp(isPlayingStart, "true", 4) == 0)
-      {
-        //no-op
-      }
-      else if (strncmp(isPlayingStart, "false", 5) == 0)
-      {
-        // music player is paused.
-        getDateAndTime();
-        displayMusicPaused();
-        return;
-      }
-    }
-  }
-
-  if (nameKeyStart == nullptr)
-  {
-    Serial.println("*******Null name key, nothing to process");
-    getWeatherInfo();
+    displayMusicPaused();
     return;
   }
 
-  const char *lastNameKeyStart = NULL;
-  while (nameKeyStart != NULL)
+  if (trackTitle != previousScrollingText)
   {
-    lastNameKeyStart = nameKeyStart;
-    nameKeyStart = strstr(nameKeyStart + 1, "\"name\":");
+    scrollingText = trackTitle;
   }
 
-  // If the last "name" key is found, get its associated value
-  if (lastNameKeyStart != NULL)
+  if (artistName != previousScrollingText2)
   {
-    const char *songNameStart = lastNameKeyStart + 8;       // Move to the start of the value
-    const char *songNameEnd = strstr(songNameStart, "\","); // Find the end of the value
-    if (songNameEnd != NULL && songNameStart < songNameEnd)
-    {
-      strncpy(songName, songNameStart, songNameEnd - songNameStart);
-      songName[songNameEnd - songNameStart] = '\0'; // Null-terminate the string
-#ifdef DEBUG
-      Serial.println("Song Name: " + String(songName));
-#endif
-      scrollingText = String(songName);
-    }
-    else
-    {
-      Serial.println("Song name not found!");
-    }
-  }
-  else
-  {
-    Serial.println("No 'name' key found in the JSON response!");
+    lowerScrollingText = artistName;
   }
 
-  // Find the start and end indices of the "name" field for the artist
-  const char *artistNameStart = strstr(response, "\"artists\"");
-  artistNameStart = strstr(artistNameStart, "\"name\":\"") + 8;
-  const char *artistNameEnd = strstr(artistNameStart, "\",");
-  if (artistNameStart != NULL && artistNameEnd != NULL && artistNameStart < artistNameEnd)
+  if (albumArtUrl != lastAlbumArtURL)
   {
-    strncpy(artistName, artistNameStart, artistNameEnd - artistNameStart);
-    artistName[artistNameEnd - artistNameStart] = '\0'; // Null-terminate the string
-    lowerScrollingText = String(artistName);
-  }
-  else
-  {
-    Serial.println("Artist name not found!");
-  }
-
-  // Extract the URL of the 64x64 image
-  // Find the start index of the "images" key
-  const char *imagesKeyStart = strstr(response, "\"images\"");
-  if (imagesKeyStart != NULL)
-  {
-    // Find the start index of the array of images
-    const char *imagesArrayStart = strstr(imagesKeyStart, "[");
-    if (imagesArrayStart != NULL)
-    {
-      // Find the start index of the last image URL
-      const char *lastImageUrlStart = NULL;
-      const char *nextImageUrl = strstr(imagesArrayStart, "\"url\"");
-      while (nextImageUrl != NULL)
-      {
-        lastImageUrlStart = nextImageUrl;
-        nextImageUrl = strstr(lastImageUrlStart + 1, "\"url\"");
-      }
-
-      if (lastImageUrlStart != NULL)
-      {
-        // Find the start and end indices of the last image URL
-        const char *lastImageUrlValueStart = strstr(lastImageUrlStart, "https://");
-        const char *lastImageUrlEnd = strstr(lastImageUrlValueStart, "\",");
-        if (lastImageUrlValueStart != NULL && lastImageUrlEnd != NULL)
-        {
-          strncpy(spotifyImageUrl, lastImageUrlValueStart, lastImageUrlEnd - lastImageUrlValueStart);
-          spotifyImageUrl[lastImageUrlEnd - lastImageUrlValueStart] = '\0'; // Null-terminate the string
-#ifdef DEBUG
-          Serial.println("Image URL: " + String(spotifyImageUrl));
-#endif
-        }
-        else
-        {
-          Serial.println("Invalid format for the last image URL!");
-        }
-      }
-      else
-      {
-        Serial.println("No image URLs found in the 'images' array!");
-      }
-    }
-    else
-    {
-      Serial.println("No array found for 'images' key!");
-    }
-  }
-  else
-  {
-    Serial.println("No 'images' key found in the JSON response!");
+    spotifyAlbumArtUrl = albumArtUrl;
   }
 }
 
@@ -645,11 +548,8 @@ void getSpotifyCurrentTrack()
     } else if (httpCode == HTTP_CODE_NO_CONTENT) {
       displayNoTrackPlaying();
     } else if (httpCode == HTTP_CODE_OK) {
-      // Escape double quotes
-      String escapedResponse = HelperFunctions::escapeSpecialCharacters(response);
-
       // Convert to const char*
-      const char *jsonCString = escapedResponse.c_str();
+      const char *jsonCString = response.c_str();
       processSpotifyJson(jsonCString);
 
     } else {
@@ -1566,38 +1466,14 @@ void loop()
       lastAlbumArtUpdateTime = currentMillis;
       getSpotifyCurrentTrack();
 
-      if (strlen(spotifyImageUrl) > 0)
+      if (spotifyAlbumArtUrl.length() > 0)
       {
-        downloadSpotifyAlbumArt(String(spotifyImageUrl));
+        downloadSpotifyAlbumArt(spotifyAlbumArtUrl);
       }
     }
     printScrolling(scrollingText.c_str(), 5, myBLUE);
     printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
 #endif
-
-    //   if (selectedTheme == PLEX_ALBUM_ART_THEME)
-    //   {
-    //     if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval)
-    //     {
-    //       lastAlbumArtUpdateTime = currentMillis;
-    //       getPlexCurrentTrack();
-    //     }
-    //   }
-    //   else if (selectedTheme == SPOTIFY_ALBUM_ART_THEME)
-    //   {
-    //     if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval)
-    //     {
-    //       lastAlbumArtUpdateTime = currentMillis;
-    //       getSpotifyCurrentTrack();
-    //       if (strlen(spotifyImageUrl) > 0)
-    //       {
-    //         downloadSpotifyAlbumArt(String(spotifyImageUrl));
-    //       }
-    //     }
-    //   }
-
-    //   printScrolling(scrollingText.c_str(), 5, myBLUE);
-    //   printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
   }
 }
 

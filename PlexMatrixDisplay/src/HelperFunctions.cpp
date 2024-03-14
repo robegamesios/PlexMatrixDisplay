@@ -124,26 +124,6 @@ String HelperFunctions::decodeHtmlEntities(String text) {
     return text;
 }
 
-String HelperFunctions::escapeSpecialCharacters(const String &jsonString) {
-    String escapedString;
-    bool insideQuotes = false;
-    for (char c : jsonString) {
-        if (c == '"') {
-            insideQuotes = !insideQuotes;
-            escapedString += c;
-        } else if (c == '\n' || c == '\r') {
-            // Skip newlines
-            continue;
-        } else if (c == ' ' && !insideQuotes) {
-            // Skip extra whitespace outside quotes
-            continue;
-        } else {
-            escapedString += c;
-        }
-    }
-    return escapedString;
-}
-
 String HelperFunctions::urlEncode(const char *msg) {
     const char *hex = "0123456789ABCDEF";
     String encodedMsg = "";

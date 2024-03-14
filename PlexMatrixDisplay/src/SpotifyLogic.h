@@ -11,8 +11,9 @@ char spotifyClientId[64];
 char spotifyClientSecret[64];
 char spotifyRefreshToken[200];
 
-char spotifyImageUrl[128];      // Assuming the URL won't exceed 128 characters
 char refreshedAccessToken[256]; // Adjust the size as needed
+
+String spotifyAlbumArtUrl = "";
 
 void fetchSpotifyConfigFile()
 {

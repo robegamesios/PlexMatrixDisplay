@@ -12,7 +12,6 @@ public:
     static float extractFloatValue(const char *jsonString, const char *fieldName, float defaultValue = 0.0f);
     static void floatToChar(float floatValue, char *charArray, int bufferSize);
     static String decodeHtmlEntities(String text);
-    static String escapeSpecialCharacters(const String &jsonString);
     static String urlEncode(const char *msg);
 };
 
