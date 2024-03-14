@@ -71,7 +71,7 @@ void displayCheckSpotifyCredentials()
   resetAlbumArtVariables();
   clearScreen();
   printCenter("CHECK SPOTIFY", 25, myRED);
-  printCenter("CREDENTIALS", 35), myRED;
+  printCenter("CREDENTIALS", 35, myRED);
 }
 
 void displayMusicPaused()
@@ -376,73 +376,26 @@ void getPlexCurrentTrack()
 
 #ifdef SPOTIFY_MODE
 
-#include <base64.h>
-
-void getRefreshToken()
+void getSpotifyRefreshToken()
 {
   Serial.println("***********Fetching Refresh Token*********");
-  printCenter("REFRESHING", 25);
-  printCenter("ACCESS TOKEN", 35);
+  printCenter("REFRESHING", 25, myCYAN);
+  printCenter("ACCESS TOKEN", 35, myCYAN);
 
-  // Construct the authorization header
-  String credentials = String(spotifyClientId) + ":" + String(spotifyClientSecret);
-  String authHeader = "Basic " + base64::encode(credentials);
+  String response = fetchSpotifyRefreshToken();
 
-  // Construct the request payload
-  String postData = "grant_type=refresh_token&refresh_token=" + String(spotifyRefreshToken);
-
-  // Configure HTTP client
-  HTTPClient http;
-  http.begin("https://accounts.spotify.com/api/token");
-  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
-  http.addHeader("Authorization", authHeader);
-
-  // Send the POST request
-  int httpResponseCode = http.POST(postData);
-#ifdef DEBUG
-  Serial.println("HTTP Response code: " + String(httpResponseCode));
-#endif
-
-  if (httpResponseCode == HTTP_CODE_OK)
+  if (response.length() > 0)
   {
-    String response = http.getString();
-#ifdef DEBUG
-    Serial.println("Response payload: " + response);
-#endif
-    // Extract the refresh_token using index-based parsing
-    const char *responseChar = response.c_str();
-    const char *refreshTokenStart = strstr(responseChar, "\"access_token\"");
-
-    if (refreshTokenStart != nullptr)
-    {
-      refreshTokenStart = strstr(refreshTokenStart, ":") + 2; // Move to the actual token value
-      const char *refreshTokenEnd = strchr(refreshTokenStart, '\"');
-
-      if (refreshTokenEnd != nullptr)
-      {
-        strncpy(refreshedAccessToken, refreshTokenStart, refreshTokenEnd - refreshTokenStart);
-        refreshedAccessToken[refreshTokenEnd - refreshTokenStart] = '\0'; // Null-terminate the string
-#ifdef DEBUG
-        Serial.println("Refreshed Access Token: " + String(refreshedAccessToken));
-#endif
-        clearScreen();
-      }
-      else
-      {
-        Serial.println("Unable to find the end of refreshed access token");
-      }
-    }
-    else
-    {
-      Serial.println("Unable to find refreshed access token in the response");
-    }
+    // parse the refreshed access token
+    const char *pJson = response.c_str();
+    jRead_string(pJson, "{'access_token'", refreshedAccessToken, 256);
+    clearScreen();
   }
   else
   {
+    Serial.println("Unable to find the end of refreshed access token");
     displayCheckSpotifyCredentials();
   }
-
-  http.end();
 }
 
 void downloadSpotifyAlbumArt(String imageUrl)
@@ -539,7 +492,7 @@ void getSpotifyCurrentTrack()
   httpGet(endpoint, headerKey, headerValue, [](int httpCode, const String &response)
           {
 #ifdef DEBUG
-            Serial.println("http code: " + httpCode);
+    Serial.println("http code: " + httpCode);
 #endif
 
     if (httpCode == HTTP_CODE_UNAUTHORIZED) {
@@ -1300,7 +1253,7 @@ void setup()
 
   Serial.println("Connected to WiFi");
   printCenter("Connected to WiFi.", 50, myGREEN);
-  delay(5000);
+  delay(1000);
 
   clearScreen();
   Serial.println("\r\nInitialisation done.");
@@ -1329,7 +1282,7 @@ void setup()
 
 #ifdef SPOTIFY_MODE
   fetchSpotifyConfigFile();
-  getRefreshToken();
+  getSpotifyRefreshToken();
 #endif
 
   // if (selectedTheme == PLEX_ALBUM_ART_THEME || selectedTheme == SPOTIFY_ALBUM_ART_THEME)

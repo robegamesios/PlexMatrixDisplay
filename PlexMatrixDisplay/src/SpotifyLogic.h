@@ -1,5 +1,6 @@
 #include <ArduinoJson.h>
 #include <SPIFFS.h>
+#include <base64.h>
 #include "HelperFunctions.h"
 
 #define WM_SPOTIFY_CLIENT_ID_LABEL "spotifyClientId"
@@ -14,6 +15,44 @@ char spotifyRefreshToken[200];
 char refreshedAccessToken[256]; // Adjust the size as needed
 
 String spotifyAlbumArtUrl = "";
+
+String fetchSpotifyRefreshToken()
+{
+  // Construct the authorization header
+  String credentials = String(spotifyClientId) + ":" + String(spotifyClientSecret);
+  String authHeader = "Basic " + base64::encode(credentials);
+
+  // Construct the request payload
+  String postData = "grant_type=refresh_token&refresh_token=" + String(spotifyRefreshToken);
+
+  // Configure HTTP client
+  HTTPClient http;
+  http.begin("https://accounts.spotify.com/api/token");
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  http.addHeader("Authorization", authHeader);
+
+  // Send the POST request
+  int httpResponseCode = http.POST(postData);
+#ifdef DEBUG
+  Serial.println("HTTP Response code: " + String(httpResponseCode));
+#endif
+
+  if (httpResponseCode == HTTP_CODE_OK)
+  {
+    String response = http.getString();
+
+#ifdef DEBUG
+    Serial.println("Response payload: " + response);
+#endif
+
+    return response;
+  }
+
+  Serial.println("Unable to find the end of refreshed access token");
+  return "";
+
+  http.end();
+}
 
 void fetchSpotifyConfigFile()
 {
