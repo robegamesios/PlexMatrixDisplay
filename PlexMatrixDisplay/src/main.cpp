@@ -1348,9 +1348,7 @@ void setup()
 
     String baseUrl = "https://raw.githubusercontent.com/robegamesios/TUNEFRAME/main/binFiles/";
 
-    String branchUrl = "https://raw.githubusercontent.com/robegamesios/TUNEFRAME/feature/batch_weather_and_AV/binFiles/";
-
-    String firmwareUrl = branchUrl + filename + ".bin";
+    String firmwareUrl = baseUrl + filename + ".bin";
 
     t_httpUpdate_return ret = httpUpdate.update(client, firmwareUrl);
 
@@ -1405,85 +1403,6 @@ void setup()
     displayCheckSpotifyCredentials();
   }
 #endif
-
-  // if (selectedTheme == PLEX_ALBUM_ART_THEME || selectedTheme == SPOTIFY_ALBUM_ART_THEME)
-  // {
-  //   Serial.print("will update firmware to TuneFrameAlbumArt_Firmware");
-  //   // update firmware to canvas
-  //   WiFiClientSecure client;
-  //   client.setInsecure();
-
-  //   // Reading data over SSL may be slow, use an adequate timeout
-  //   client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
-
-  //   printCenter(ipAddressString, 10, myBLUE);
-  //   printCenter("Loading..", 20, myORANGE);
-  //   printCenter("COVER ART", 30, myPURPLE);
-
-  //   httpUpdate.onProgress(update_progress);
-
-  //   t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/TUNEFRAME/main/binFiles/TuneFrameAlbumArt_Firmware.bin");
-
-  //   switch (ret)
-  //   {
-  //   case HTTP_UPDATE_FAILED:
-  //     Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
-  //     break;
-
-  //   case HTTP_UPDATE_NO_UPDATES:
-  //     Serial.println("HTTP_UPDATE_NO_UPDATES");
-  //     break;
-
-  //   case HTTP_UPDATE_OK:
-  //     Serial.println("HTTP_UPDATE_OK");
-  //     break;
-  //   }
-  //   return;
-  // }
-
-  // if (selectedTheme == PLEX_ALBUM_ART_THEME)
-  // {
-  //   fetchPlexConfigFile();
-  // }
-  // else if (selectedTheme == SPOTIFY_ALBUM_ART_THEME)
-  // {
-  //   fetchSpotifyConfigFile();
-  //   getRefreshToken();
-  // }
-  // else if (selectedTheme == WEATHER_STATION_THEME || selectedTheme == AUDIO_VISUALIZER_THEME)
-  // {
-  //   Serial.print("will update firmware to TuneFrameAV_Firmware");
-  //   // update firmware to canvas
-  //   WiFiClientSecure client;
-  //   client.setInsecure();
-
-  //   // Reading data over SSL may be slow, use an adequate timeout
-  //   client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
-
-  //   printCenter(ipAddressString, 10, myBLUE);
-  //   printCenter("Loading..", 20, myORANGE);
-  //   printCenter("MUSIC VISUALIZER", 30, myPURPLE);
-
-  //   httpUpdate.onProgress(update_progress);
-
-  //   t_httpUpdate_return ret = httpUpdate.update(client, "https://raw.githubusercontent.com/robegamesios/TUNEFRAME/main/binFiles/TuneFrameAV_Firmware.bin");
-
-  //   switch (ret)
-  //   {
-  //   case HTTP_UPDATE_FAILED:
-  //     Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
-  //     break;
-
-  //   case HTTP_UPDATE_NO_UPDATES:
-  //     Serial.println("HTTP_UPDATE_NO_UPDATES");
-  //     break;
-
-  //   case HTTP_UPDATE_OK:
-  //     Serial.println("HTTP_UPDATE_OK");
-  //     break;
-  //   }
-  //   return;
-  // }
 
   server.begin();
 }
