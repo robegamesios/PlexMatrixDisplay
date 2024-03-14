@@ -62,6 +62,18 @@ void displayCheckWeatherCredentials()
   printCenter("CREDENTIALS", 35, myRED);
 }
 
+void displayCheckPlexAmpCredentials()
+{
+#ifdef DEBUG
+  Serial.println("Check PlexAmp credentials");
+#endif
+
+  resetAlbumArtVariables();
+  clearScreen();
+  printCenter("CHECK PLEXAMP", 25, myRED);
+  printCenter("CREDENTIALS", 35, myRED);
+}
+
 void displayCheckSpotifyCredentials()
 {
 #ifdef DEBUG
@@ -149,60 +161,60 @@ void getDateAndTime()
 #include "weatherIcons.h"
 
 // Draw one of the available weather icons in the specified space
-void drawWeatherIcon(int startx, int starty, int width, int height, const char *icon, bool enlarged)
+void drawWeatherIcon(int startx, int starty, int width, int height, std::string icon, bool enlarged)
 {
   // Perform switch-case based on the entire string
-  if (strcmp(icon, "01d") == 0)
+  if (icon == "01d")
   {
     drawBitmap(startx, starty, width, height, sun_24x24, enlarged);
   }
-  else if (strcmp(icon, "01n") == 0)
+  else if (icon == "01n")
   {
     drawBitmap(startx, starty, width, height, moon_24x24, enlarged);
   }
-  else if (strcmp(icon, "02d") == 0)
+  else if (icon == "02d")
   {
     drawBitmap(startx, starty, width, height, fewClouds_24x24, enlarged);
   }
-  else if (strcmp(icon, "02n") == 0)
+  else if (icon == "02n")
   {
     drawBitmap(startx, starty, width, height, fewCloudsNight_24x24, enlarged);
   }
-  else if (strcmp(icon, "03d") == 0 || strcmp(icon, "03n") == 0)
+  else if (icon == "03d" || icon == "03n")
   {
     drawBitmap(startx, starty, 24, 24, scatteredClouds_24x24, enlarged);
   }
-  else if (strcmp(icon, "04d") == 0 || strcmp(icon, "04n") == 0)
+  else if (icon == "04d" || icon == "04n")
   {
     drawBitmap(startx, starty, 24, 24, brokenClouds_24x24, enlarged);
   }
-  else if (strcmp(icon, "09d") == 0)
+  else if (icon == "09d")
   {
     drawBitmap(startx, starty, width, height, showers_24x24, enlarged);
   }
-  else if (strcmp(icon, "09n") == 0)
+  else if (icon == "09n")
   {
     drawBitmap(startx, starty, width, height, showersNight_24x24, enlarged);
   }
-  else if (strcmp(icon, "10d") == 0 || strcmp(icon, "10n") == 0)
+  else if (icon == "10d" || icon == "10n")
   {
     drawBitmap(startx, starty, width, height, rain_24x24, enlarged);
   }
-  else if (strcmp(icon, "11d") == 0 || strcmp(icon, "11n") == 0)
+  else if (icon == "11d" || icon == "11n")
   {
     drawBitmap(startx, starty, width, height, thunderstorm_24x24, enlarged);
   }
-  else if (strcmp(icon, "13d") == 0 || strcmp(icon, "13n") == 0)
+  else if (icon == "13d" || icon == "13n")
   {
     drawBitmap(startx, starty, width, height, snow_24x24, enlarged);
   }
-  else if (strcmp(icon, "50d") == 0)
+  else if (icon == "50d")
   {
     drawBitmap(startx, starty, width, height, mist_24x24, enlarged);
   }
 }
 
-void printTemperature(const char *icon, const char *buf, int x, int y, uint16_t textColor = myWHITE, GFXfont font = Picopixel)
+void printTemperature(std::string icon, const char *buf, int x, int y, uint16_t textColor = myWHITE, GFXfont font = Picopixel)
 {
   int padding = 2;
   int degreeSymbolWidth = 3;
@@ -1268,8 +1280,7 @@ void setup()
 
 #ifdef WEATHERCLOCK_MODE
   // get the weather
-  fetchWeatherConfigFile();
-  if (weatherConfigExist)
+  if (fetchWeatherConfigFile())
   {
     getWeatherInfo();
   }
@@ -1285,12 +1296,21 @@ void setup()
 #endif
 
 #ifdef PLEXAMP_MODE
-  fetchPlexConfigFile();
+  if (!fetchPlexConfigFile())
+  {
+    displayCheckPlexAmpCredentials();
+  }
 #endif
 
 #ifdef SPOTIFY_MODE
-  fetchSpotifyConfigFile();
-  getSpotifyRefreshToken();
+  if (fetchSpotifyConfigFile())
+  {
+    getSpotifyRefreshToken();
+  }
+  else 
+  {
+    displayCheckSpotifyCredentials();
+  }
 #endif
 
   // if (selectedTheme == PLEX_ALBUM_ART_THEME || selectedTheme == SPOTIFY_ALBUM_ART_THEME)
@@ -1382,24 +1402,21 @@ void loop()
     handleHttpRequest();
 
 #ifdef WEATHERCLOCK_MODE
-    if (weatherConfigExist)
+    unsigned long currentMillis = millis();
+
+    if (currentMillis - lastClockUpdateTime >= clockUpdateInterval)
     {
-      unsigned long currentMillis = millis();
-
-      if (currentMillis - lastClockUpdateTime >= clockUpdateInterval)
-      {
-        lastClockUpdateTime = currentMillis;
-        getDateAndTime();
-      }
-
-      if (currentMillis - lastWeatherUpdateTime >= weatherUpdateInterval)
-      {
-        lastWeatherUpdateTime = currentMillis;
-        getWeatherInfo();
-      }
-      printScrolling(scrollingText.c_str(), 5, myBLUE);
-      printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
+      lastClockUpdateTime = currentMillis;
+      getDateAndTime();
     }
+
+    if (currentMillis - lastWeatherUpdateTime >= weatherUpdateInterval)
+    {
+      lastWeatherUpdateTime = currentMillis;
+      getWeatherInfo();
+    }
+    printScrolling(scrollingText.c_str(), 5, myBLUE);
+    printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
 #endif
 
 #ifdef AV_MODE

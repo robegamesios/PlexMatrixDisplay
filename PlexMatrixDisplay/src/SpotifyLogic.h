@@ -1,7 +1,5 @@
 #include <ArduinoJson.h>
 #include <SPIFFS.h>
-#include <base64.h>
-#include "HelperFunctions.h"
 
 #define WM_SPOTIFY_CLIENT_ID_LABEL "spotifyClientId"
 #define WM_SPOTIFY_CLIENT_SECRET_LABEL "spotifyClientSecret"
@@ -11,6 +9,11 @@
 char spotifyClientId[64];
 char spotifyClientSecret[64];
 char spotifyRefreshToken[200];
+
+#ifdef SPOTIFY_MODE
+
+#include <base64.h>
+#include "HelperFunctions.h"
 
 char refreshedAccessToken[256]; // Adjust the size as needed
 
@@ -54,7 +57,7 @@ String fetchSpotifyRefreshToken()
   http.end();
 }
 
-void fetchSpotifyConfigFile()
+boolean fetchSpotifyConfigFile()
 {
   if (SPIFFS.exists(SPOTIFY_CONFIG_JSON))
   {
@@ -84,6 +87,7 @@ void fetchSpotifyConfigFile()
           Serial.println("Spotify Client Secret: " + String(spotifyClientSecret));
           Serial.println("Spotify Refresh Token: " + String(spotifyRefreshToken));
 #endif
+          return true;
         }
         else
         {
@@ -105,7 +109,10 @@ void fetchSpotifyConfigFile()
   {
     Serial.println("Config file does not exist");
   }
+  return false;
 }
+
+#endif
 
 // Save Plex config to SPIFF
 void saveSpotifyConfig(const char *clientId, const char *clientSecret, const char *refreshToken)

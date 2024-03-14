@@ -1,11 +1,6 @@
 
 #include <Arduino.h>
-#include <cstring>
-#include <string>
-#include <time.h>
-#include <ArduinoJson.h>
 #include <SPIFFS.h>
-#include "HelperFunctions.h"
 
 #define WM_WEATHER_CITY_NAME_LABEL "weatherCityName"
 #define WM_WEATHER_COUNTRY_CODE_LABEL "weatherCountryCode"
@@ -18,7 +13,14 @@ char weatherCountryCode[6];
 char weatherApikey[64];
 char weatherUnit[2] = "0";
 
-bool weatherConfigExist = false;
+#ifdef WEATHERCLOCK_MODE
+
+#include <cstring>
+#include <string>
+#include <time.h>
+#include <ArduinoJson.h>
+#include "HelperFunctions.h"
+#include <jRead.h>
 
 // ******************************************* BEGIN CLOCK ****************************************************
 #pragma region CLOCK
@@ -80,7 +82,7 @@ String getLocalTimeAndDate()
 
 struct WeatherData
 {
-    const char *weatherIcon;
+    std::string weatherIcon;
     std::string cityName;
     std::string temperature;
     std::string feelsLike;
@@ -89,7 +91,7 @@ struct WeatherData
     std::string tempMax;
     std::string extraInfo;
 
-    WeatherData(const char *icon, std::string city, std::string temp, std::string feels, std::string hum, std::string min, std::string max, std::string extra)
+    WeatherData(std::string icon, std::string city, std::string temp, std::string feels, std::string hum, std::string min, std::string max, std::string extra)
         : weatherIcon(icon), cityName(city), temperature(temp), feelsLike(feels), humidity(hum), tempMin(min), tempMax(max), extraInfo(extra) {}
 };
 
@@ -153,11 +155,12 @@ String getWeatherUnit()
     }
 }
 
-WeatherData processWeatherJson(const char *response)
+WeatherData processWeatherJson(const char *pJson)
 {
-    // we need the timezone to setup the Time
-    float timezone = HelperFunctions::extractFloatValue(response, "\"timezone\"");
-    configTime(long(timezone), 0, "pool.ntp.org"); // DST offset is set to zero, no need since timezone accounts for it.
+    char str[128]; // general use string buffer
+    jRead_string(pJson, "{'timezone'", str, 128);
+    String timezone = str;
+    configTime(timezone.toFloat(), 0, "pool.ntp.org"); // DST offset is set to zero, no need since timezone accounts for it.
 
     std::string tempUnit = "";
     std::string pressureUnit = "hPa";
@@ -182,58 +185,55 @@ WeatherData processWeatherJson(const char *response)
         windUnit = "MPH";
     }
 
-    const char *description =  HelperFunctions::extractStringValue(response, "\"description\"", "Unknown");
-    // printf("Weather Description: %s\n", description);
-    std::string uppercasedDescription =  HelperFunctions::toUpperCase(description);
+    jRead_string(pJson, "{'weather'[{'description'", str, 128);
+    std::string uppercasedDescription = HelperFunctions::toUpperCase(str);
 
-    const char *icon = HelperFunctions::extractStringValue(response, "\"icon\"", "??");
-    // printf("Weather Icon: %s\n", icon);
-
-    float temp = HelperFunctions::extractFloatValue(response, "\"temp\"");
-    // printf("Temperature: %.2f\n", temp);
+    jRead_string(pJson, "{'weather'[{'icon'", str, 128);
+    std::string icon = str;
+    
+    float temp = jRead_float(pJson, "{'main'{'temp'");
     int tempInt = (int)temp;
     std::string tempString = std::to_string(tempInt);
 
-    float feelsLike = HelperFunctions::extractFloatValue(response, "\"feels_like\"");
-    // printf("Temperature min: %.2f\n", temp_min);
+    float feelsLike = jRead_float(pJson, "{'main'{'feels_like'");
     int feelsLikeInt = (int)feelsLike;
     std::string feelsLikeString = "FL: " + std::to_string(feelsLikeInt) + tempUnit;
 
-    float temp_min = HelperFunctions::extractFloatValue(response, "\"temp_min\"");
+    float temp_min = jRead_float(pJson, "{'main'{'temp_min'");
     // printf("Temperature min: %.2f\n", temp_min);
     int tempMinInt = (int)temp_min;
     std::string tempMinString = "L: " + std::to_string(tempMinInt) + tempUnit;
 
-    float temp_max = HelperFunctions::extractFloatValue(response, "\"temp_max\"");
+    float temp_max = jRead_float(pJson, "{'main'{'temp_max'");
     // printf("Temperature max: %.2f\n", temp_max);
     int tempMaxInt = (int)temp_max;
     std::string tempMaxString = "H: " + std::to_string(tempMaxInt) + tempUnit;
 
-    float pressure = HelperFunctions::extractFloatValue(response, "\"pressure\"");
+    float pressure = jRead_float(pJson, "{'main'{'pressure'");
     // printf("Pressure: %.2f\n", pressure);
     int pressureInt = (int)pressure;
     std::string pressureString = "P: " + std::to_string(pressureInt) + pressureUnit;
 
-    float humidity = HelperFunctions::extractFloatValue(response, "\"humidity\"");
+    float humidity = jRead_float(pJson, "{'main'{'humidity'");
     // printf("Humidity: %.2f\n", humidity);
     int humidityInt = (int)humidity;
     std::string humidityString = "RH: " + std::to_string(humidityInt) + "%";
 
-    float wind_direction = HelperFunctions::extractFloatValue(response, "\"deg\"");
+    float wind_direction = jRead_float(pJson, "{'wind'{'deg'");
     // printf("Wind direction: %.2f\n", wind_direction);
     int windDirectionInt = (int)wind_direction;
 
-    float wind_speed = HelperFunctions::extractFloatValue(response, "\"speed\"");
+    float wind_speed = jRead_float(pJson, "{'wind'{'speed'");
     // printf("Wind speed: %.2f\n", wind_speed);
     int windSpeedInt = (int)wind_speed;
     std::string windString = "Wind: " + degreesToDirection(windDirectionInt) + " " + std::to_string(windSpeedInt) + windUnit;
 
-    float sunrise = HelperFunctions::extractFloatValue(response, "\"sunrise\"");
+    float sunrise = jRead_float(pJson, "{'sys'{'sunrise'");
     // printf("sunrise: %.2f\n", sunrise);
     std::string sunriseValue = getLocalTimeFromUnix(sunrise).c_str();
     std::string sunriseString = "Sunrise: " + sunriseValue;
 
-    float sunset = HelperFunctions::extractFloatValue(response, "\"sunset\"");
+    float sunset = jRead_float(pJson, "{'sys'{'sunset'");
     // printf("sunset: %.2f\n", sunset);
     std::string sunsetValue = getLocalTimeFromUnix(sunset).c_str();
     std::string sunsetString = "Sunset: " + sunsetValue;
@@ -243,92 +243,93 @@ WeatherData processWeatherJson(const char *response)
     // display the info to LED Matrix
     String cleanCityName = String(weatherCityName);
     cleanCityName.replace("%20", " ");
-    std::string uppercasedCityName =  HelperFunctions::toUpperCase(cleanCityName.c_str());
+    std::string uppercasedCityName = HelperFunctions::toUpperCase(cleanCityName.c_str());
 
     WeatherData weatherData(icon, uppercasedCityName, tempString, feelsLikeString, humidityString, tempMinString, tempMaxString, extraInfo);
 
     return weatherData;
 }
 
-void fetchWeatherConfigFile()
+boolean fetchWeatherConfigFile()
 {
-  if (SPIFFS.exists(WEATHER_CONFIG_JSON))
-  {
-    // file exists, reading and loading
-    File configFile = SPIFFS.open(WEATHER_CONFIG_JSON, "r");
-    if (configFile)
+    if (SPIFFS.exists(WEATHER_CONFIG_JSON))
     {
-      StaticJsonDocument<512> json;
-      DeserializationError error = deserializeJson(json, configFile);
-      serializeJsonPretty(json, Serial);
-      if (!error)
-      {
-        if (json.containsKey(WM_WEATHER_CITY_NAME_LABEL) && json.containsKey(WM_WEATHER_COUNTRY_CODE_LABEL) && json.containsKey(WM_WEATHER_API_KEY_LABEL) && json.containsKey(WM_WEATHER_UNIT_LABEL))
+        // file exists, reading and loading
+        File configFile = SPIFFS.open(WEATHER_CONFIG_JSON, "r");
+        if (configFile)
         {
-          const char *tempCityName = json[WM_WEATHER_CITY_NAME_LABEL];
-          const char *tempCountryCode = json[WM_WEATHER_COUNTRY_CODE_LABEL];
-          const char *tempApiKey = json[WM_WEATHER_API_KEY_LABEL];
-          const char *tempUnit = json[WM_WEATHER_UNIT_LABEL];
+            StaticJsonDocument<512> json;
+            DeserializationError error = deserializeJson(json, configFile);
+            serializeJsonPretty(json, Serial);
+            if (!error)
+            {
+                if (json.containsKey(WM_WEATHER_CITY_NAME_LABEL) && json.containsKey(WM_WEATHER_COUNTRY_CODE_LABEL) && json.containsKey(WM_WEATHER_API_KEY_LABEL) && json.containsKey(WM_WEATHER_UNIT_LABEL))
+                {
+                    const char *tempCityName = json[WM_WEATHER_CITY_NAME_LABEL];
+                    const char *tempCountryCode = json[WM_WEATHER_COUNTRY_CODE_LABEL];
+                    const char *tempApiKey = json[WM_WEATHER_API_KEY_LABEL];
+                    const char *tempUnit = json[WM_WEATHER_UNIT_LABEL];
 
-          // Ensure null-termination and copy to plexServerIp and plexServerToken
-          strlcpy(weatherCityName, tempCityName, sizeof(weatherCityName));
-          strlcpy(weatherCountryCode, tempCountryCode, sizeof(weatherCountryCode));
-          strlcpy(weatherApikey, tempApiKey, sizeof(weatherApikey));
-          strlcpy(weatherUnit, tempUnit, sizeof(weatherUnit));
+                    // Ensure null-termination and copy to plexServerIp and plexServerToken
+                    strlcpy(weatherCityName, tempCityName, sizeof(weatherCityName));
+                    strlcpy(weatherCountryCode, tempCountryCode, sizeof(weatherCountryCode));
+                    strlcpy(weatherApikey, tempApiKey, sizeof(weatherApikey));
+                    strlcpy(weatherUnit, tempUnit, sizeof(weatherUnit));
 
 #ifdef DEBUG
-          Serial.println("Weather City Name: " + String(weatherCityName));
-          Serial.println("Weather Country Code: " + String(weatherCountryCode));
-          Serial.println("Weather API Key: " + String(weatherApikey));
+                    Serial.println("Weather City Name: " + String(weatherCityName));
+                    Serial.println("Weather Country Code: " + String(weatherCountryCode));
+                    Serial.println("Weather API Key: " + String(weatherApikey));
 #endif
-
-          weatherConfigExist = true;
+                    return true;
+                }
+                else
+                {
+                    Serial.println("Config missing Weather credentials");
+                }
+            }
+            else
+            {
+                Serial.println("failed to load json config");
+            }
+            configFile.close();
         }
         else
         {
-          Serial.println("Config missing Weather credentials");
+            Serial.println("Failed to open config file");
         }
-      }
-      else
-      {
-        Serial.println("failed to load json config");
-      }
-      configFile.close();
     }
     else
     {
-      Serial.println("Failed to open config file");
+        Serial.println("Config file does not exist");
     }
-  }
-  else
-  {
-    Serial.println("Config file does not exist");
-  }
+    return false;
 }
 
-// Save Plex config to SPIFF
+#endif
+
 void saveWeatherConfig(const char *cityName, const char *countryCode, const char *apiKey, const char *unit)
 {
-  Serial.println(F("Saving config"));
-  StaticJsonDocument<512> json;
-  json[WM_WEATHER_CITY_NAME_LABEL] = cityName;       // Assigning C-style strings directly
-  json[WM_WEATHER_COUNTRY_CODE_LABEL] = countryCode; // Assigning C-style strings directly
-  json[WM_WEATHER_API_KEY_LABEL] = apiKey;           // Assigning C-style strings directly
-  json[WM_WEATHER_UNIT_LABEL] = unit;                // Assigning C-style strings directly
+    Serial.println(F("Saving config"));
+    StaticJsonDocument<512> json;
+    json[WM_WEATHER_CITY_NAME_LABEL] = cityName;       // Assigning C-style strings directly
+    json[WM_WEATHER_COUNTRY_CODE_LABEL] = countryCode; // Assigning C-style strings directly
+    json[WM_WEATHER_API_KEY_LABEL] = apiKey;           // Assigning C-style strings directly
+    json[WM_WEATHER_UNIT_LABEL] = unit;                // Assigning C-style strings directly
 
-  File configFile = SPIFFS.open(WEATHER_CONFIG_JSON, "w");
-  if (!configFile)
-  {
-    Serial.println("failed to open config file for writing");
-    return; // Exit the function early if file opening fails
-  }
+    File configFile = SPIFFS.open(WEATHER_CONFIG_JSON, "w");
+    if (!configFile)
+    {
+        Serial.println("failed to open config file for writing");
+        return; // Exit the function early if file opening fails
+    }
 
-  serializeJsonPretty(json, Serial);
-  if (serializeJson(json, configFile) == 0)
-  {
-    Serial.println(F("Failed to write to file"));
-  }
-  configFile.close();
+    serializeJsonPretty(json, Serial);
+    if (serializeJson(json, configFile) == 0)
+    {
+        Serial.println(F("Failed to write to file"));
+    }
+    configFile.close();
 }
 
 #pragma endregion

@@ -1,6 +1,5 @@
 #include <ArduinoJson.h>
 #include <SPIFFS.h>
-#include "HelperFunctions.h"
 
 #define WM_PLEX_SERVER_IP_LABEL "plexServerIp"
 #define WM_PLEX_SERVER_PORT_LABEL "plexServerPort"
@@ -10,6 +9,10 @@
 char plexServerIp[20];
 char plexServerPort[10];
 char plexServerToken[100];
+
+#ifdef PLEXAMP_MODE
+
+#include "HelperFunctions.h"
 
 struct PlexData
 {
@@ -98,7 +101,7 @@ PlexData processPlexResponse(const String &payload)
     return data;
 }
 
-void fetchPlexConfigFile()
+boolean fetchPlexConfigFile()
 {
     if (SPIFFS.exists(PLEX_CONFIG_JSON))
     {
@@ -129,6 +132,7 @@ void fetchPlexConfigFile()
                     Serial.println("Plex Server Port: " + String(plexServerPort));
                     Serial.println("Plex Server Token: " + String(plexServerToken));
 #endif
+                    return true;
                 }
                 else
                 {
@@ -150,7 +154,10 @@ void fetchPlexConfigFile()
     {
         Serial.println("Config file does not exist");
     }
+    return false;
 }
+
+#endif
 
 // Save Plex config to SPIFF
 void savePlexConfig(const char *serverIp, const char *serverPort, const char *serverToken)
