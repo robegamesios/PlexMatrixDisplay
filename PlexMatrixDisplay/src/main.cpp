@@ -285,6 +285,8 @@ void getWeatherInfo()
 // ******************************************* BEGIN PLEX ALBUM ART *******************************************
 #pragma region PLEX_ALBUM_ART
 
+#ifdef PLEXAMP_MODE
+
 void downloadPlexAlbumArt(String relativeUrl, String trackTitle, String artistName)
 {
   String imageUrl = "http://" + String(plexServerIp) + ":" + String(plexServerPort) + "/photo/:/transcode?width=48&height=48&url=" + relativeUrl;
@@ -339,7 +341,7 @@ void getPlexCurrentTrack()
             String trackTitle = data.trackTitle;
             String artistName = data.artistName;
 
-            if (coverArtUrl != "")
+            if (artistName == "paused")
             {
                 displayMusicPaused();
             }
@@ -367,6 +369,8 @@ void getPlexCurrentTrack()
       displayNoTrackPlaying();
     } });
 }
+
+#endif
 
 #pragma endregion
 // ******************************************* END PLEX ALBUM ART *********************************************
@@ -1408,7 +1412,6 @@ void loop()
     }
     printScrolling(scrollingText.c_str(), 5, myBLUE);
     printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
-
 #endif
 
 #ifdef SPOTIFY_MODE

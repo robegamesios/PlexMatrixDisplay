@@ -35,6 +35,10 @@ PlexData processPlexResponse(const String &payload)
         playerState = payload.substring(stateStartIndex, stateEndIndex);
     }
 
+#ifdef DEBUG
+    Serial.println("****player state:" + playerState);
+#endif
+
     int lastTrackIndex = payload.lastIndexOf("<Track ");
     if (lastTrackIndex != -1 && playerState == "playing")
     {
@@ -90,7 +94,7 @@ PlexData processPlexResponse(const String &payload)
             }
         }
     }
-    PlexData data("", "", "");
+    PlexData data("", "", "paused");
     return data;
 }
 
