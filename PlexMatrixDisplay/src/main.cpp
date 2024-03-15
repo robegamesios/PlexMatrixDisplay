@@ -4,7 +4,7 @@
 #define SPOTIFY_ALBUM_ART_THEME 201
 #define GIF_ART_THEME 210
 
-#define DEBUG // UnComment to see debug prints
+// #define DEBUG // UnComment to see debug prints
 
 #include "MatrixDisplay.h"
 #include "TFWifiManager.h"
@@ -520,15 +520,8 @@ void processSpotifyJson(const char *pJson)
     return;
   }
 
-  if (trackTitle != previousScrollingText)
-  {
     scrollingText = trackTitle;
-  }
-
-  if (artistName != previousScrollingText2)
-  {
     lowerScrollingText = artistName;
-  }
 
   if (albumArtUrl != lastAlbumArtURL)
   {
@@ -1438,7 +1431,7 @@ void loop()
 #ifdef PLEXAMP_MODE
     unsigned long currentMillis = millis();
 
-    if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval)
+    if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval && !isTextScrolling && !isTextScrolling2) //!isTextScrolling && !isTextScrolling2 is just a work around for scrolling text to not pause when polling is done
     {
       lastAlbumArtUpdateTime = currentMillis;
       getPlexCurrentTrack();
@@ -1450,7 +1443,7 @@ void loop()
 #ifdef SPOTIFY_MODE
     unsigned long currentMillis = millis();
 
-    if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval)
+    if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval && !isTextScrolling && !isTextScrolling2) //!isTextScrolling && !isTextScrolling2 is just a work around for scrolling text to not pause when polling is done
     {
       lastAlbumArtUpdateTime = currentMillis;
       getSpotifyCurrentTrack();

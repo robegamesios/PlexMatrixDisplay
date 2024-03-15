@@ -138,6 +138,8 @@ enum ScrollState
 
 char previousScrollingText[100] = "";
 char previousScrollingText2[100] = "";
+bool isTextScrolling = false;
+bool isTextScrolling2 = false;
 
 void printScrolling(const char *buf, int y, uint16_t textColor = myWHITE, GFXfont font = Picopixel)
 {
@@ -185,6 +187,7 @@ void printScrolling(const char *buf, int y, uint16_t textColor = myWHITE, GFXfon
     break;
 
   case SCROLL_RUNNING:
+    isTextScrolling = true;
     // Calculate time since last scroll
     unsigned long currentTime = millis();
     unsigned long elapsedTime = currentTime - lastScrollTime;
@@ -209,11 +212,12 @@ void printScrolling(const char *buf, int y, uint16_t textColor = myWHITE, GFXfon
       // Move the text to the left
       xPos--;
 
-      if (xPos == -textWidth)
+      if (xPos == -textWidth - 1) // added -1 so that the text completely clears the screen.
       {
         // If the text has scrolled completely off the screen, reset xPos to start over
         xPos = PANEL_WIDTH;
         state = SCROLL_IDLE;
+        isTextScrolling = false;
       }
     }
     break;
@@ -266,6 +270,14 @@ void printScrolling2(const char *buf, int y, uint16_t textColor = myWHITE, GFXfo
     break;
 
   case SCROLL_RUNNING:
+    if (!isTextScrolling)
+    {
+      isTextScrolling2 = false;
+    }
+    else
+    {
+      isTextScrolling2 = true;
+    }
     // Calculate time since last scroll
     unsigned long currentTime = millis();
     unsigned long elapsedTime = currentTime - lastScrollTime;
@@ -290,11 +302,12 @@ void printScrolling2(const char *buf, int y, uint16_t textColor = myWHITE, GFXfo
       // Move the text to the left
       xPos--;
 
-      if (xPos == -textWidth)
+      if (xPos == -textWidth - 1) // added -1 so that the text completely clears the screen.
       {
         // If the text has scrolled completely off the screen, reset xPos to start over
         xPos = PANEL_WIDTH;
         state = SCROLL_IDLE;
+        isTextScrolling2 = false;
       }
     }
     break;
