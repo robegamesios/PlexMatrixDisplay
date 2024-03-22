@@ -136,6 +136,18 @@ void displayMusicPaused()
   }
 }
 
+void displayFailureReloadGifArt()
+{
+#ifdef DEBUG
+  Serial.println("cannot open gif file");
+#endif
+
+  printCenter("FAILURE..", 15, myRED);
+  printCenter("TRY LOADING", 25, myRED);
+  printCenter("GIF ART AGAIN", 35, myRED);
+  printCenter("FROM BROWSER", 45, myRED);
+}
+
 void restartDevice()
 {
   clearScreen();
@@ -1099,16 +1111,14 @@ void showGIF()
       y_offset = (MATRIX_HEIGHT - gif.getCanvasHeight()) / 2;
       if (y_offset < 0)
         y_offset = 0;
-      // Serial.printf("Successfully opened GIF; Canvas size = %d x %d\n", gif.getCanvasWidth(), gif.getCanvasHeight());
+#ifdef DEBUG
+      Serial.printf("Successfully opened GIF; Canvas size = %d x %d\n", gif.getCanvasWidth(), gif.getCanvasHeight());
+#endif
       gifState = STATE_PLAY_GIF;
     }
     else
     {
-      Serial.println("******** Failed to show GIF");
-      clearScreen();
-      printCenter("FAILED TO", 20);
-      printCenter("SHOW GIF", 30);
-      gifState = STATE_IDLE;
+      displayFailureReloadGifArt();
     }
     break;
 
@@ -1130,77 +1140,61 @@ void showGIF()
   }
 }
 
-void downloadGifArt(String filename)
+boolean downloadSuccess = false; // Global variable to track download success
+
+void handleGifDownload(int httpCode, const String &response)
 {
-  // Initialize HTTP client
-  HTTPClient http;
-
-  // Specify the base URL of the GIF files on raw.githubusercontent.com
-  String baseURL = "https://raw.githubusercontent.com/robegamesios/PlexMatrixDisplay/main/shared/gifs/";
-
-  // Construct the full URL by appending the filename to the base URL
-  String gifURL = baseURL + filename + ".gif";
-  Serial.println("*************GIF url = " + gifURL);
-
-  // Start the HTTP request to download the GIF file
-  if (http.begin(gifURL))
+  if (httpCode == HTTP_CODE_OK)
   {
-    int httpCode = http.GET(); // Send GET request
+    deleteGifArt();
 
-    // Check if the request was successful
-    if (httpCode == HTTP_CODE_OK)
+    // Open a file to save the downloaded GIF
+    File file = SPIFFS.open(GIF_ART, FILE_WRITE);
+    if (file)
     {
+      file.print(response);
+      file.close();
 
-      deleteGifArt();
-
-      // Open a file to save the downloaded GIF
-      File file = SPIFFS.open(GIF_ART, FILE_WRITE);
-      if (file)
+      // Check if the file exists
+      if (SPIFFS.exists(GIF_ART))
       {
-        // Write the response body to the file
-        http.writeToStream(&file);
-        file.close();
-
-        // Check if the file exists
-        if (SPIFFS.exists(GIF_ART))
-        {
-          Serial.println("Successfully downloaded and saved GIF file to SPIFFS");
-        }
-        else
-        {
-          Serial.println("Failed to save image to SPIFFS");
-          clearScreen();
-          printCenter("FAILED TO", 20);
-          printCenter("SAVE IMAGE", 30);
-        }
+        Serial.println("Image downloaded and saved successfully");
+        downloadSuccess = true;
       }
       else
       {
-        Serial.println("Failed to create file");
-        clearScreen();
-        printCenter("FAILED TO", 20);
-        printCenter("CREATE FILE", 30);
+        Serial.println("Failed to save image to SPIFFS");
       }
     }
     else
     {
-      Serial.print("Failed to download image. HTTP error code: ");
-      Serial.println(httpCode);
-      clearScreen();
-      printCenter("HTTP ERROR", 20);
-      printCenter(String(httpCode).c_str(), 30);
+      Serial.println("Failed to create file");
     }
-    // End the HTTP client
-    http.end();
   }
   else
   {
-    Serial.println("Failed to connect to image URL");
-    clearScreen();
-    printCenter("FAILED TO", 20);
-    printCenter("CONNECT TO", 30);
-    printCenter("IMAGE URL", 40);
+    Serial.print("Failed to download image. HTTP error code: ");
+    Serial.println(httpCode);
   }
+}
+
+boolean downloadGifArt(String filename)
+{
+  // Initialize HTTP client
+  HTTPClient http;
+
+  // Construct the full URL for the GIF file
+  String gifURL = filename + ".gif";
+
+// #ifdef DEBUG
+  Serial.println("*************GIF url = " + gifURL);
+// #endif
+
+  downloadSuccess = false; // Reset download success flag
+
+  httpGet(gifURL, "", "", handleGifDownload);
+
+  return downloadSuccess;
 }
 
 #endif
@@ -1395,10 +1389,32 @@ void processRequest(WiFiClient client, String method, String path, String key, S
     if (key == PREF_GIF_ART_URL)
     {
       String payload = value;
+
+#ifdef DEBUG
       Serial.println("Received payload: " + payload);
+#endif
+
       client.println("HTTP/1.0 204 No Content");
-      downloadGifArt(payload);
-      force_restart = true;
+      bool downloadSuccess = downloadGifArt(payload);
+      if (downloadSuccess)
+      {
+        clearScreen();
+        gif.close();
+        gifState = STATE_IDLE;
+        showGIF();
+      }
+      else
+      {
+#ifdef DEBUG
+        Serial.println("******** Failed to show GIF");
+#endif
+
+        clearScreen();
+        printCenter("FAILED TO", 20, myRED);
+        printCenter("SHOW GIF ART", 30, myRED);
+        gif.close();
+        gifState = STATE_IDLE;
+      }
       return;
     }
 #endif
@@ -1630,6 +1646,7 @@ void setup()
 #endif
 
 #ifdef ANIMATEDGIF_MODE
+// setup for Animated GIF
 #endif
 
   server.begin();

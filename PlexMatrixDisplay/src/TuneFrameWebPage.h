@@ -150,10 +150,10 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
     <h2 class="card-title">Animated GIF Art</h2>
     <p class="card-description">Displays Animated GIF Art.<br><br></p>
     <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/main/thumbnails/websiteIcons/spotifyIcon.jpeg?raw=true" alt="Animated GIF Art">
-    <label for="instruction">1. Run <b>python3 -m http.server</b></label><br>
-    <label for="gifBaseUrl">Base Url:</label>
-    <input type="text" id="gifBaseUrl" name="gifBaseUrl" placeholder="http://[::]:8000/"><br><br>
-    <label for="gifArtName">GIF Art filename:</label>
+    <label for="instruction">1. Run on terminal: <b>python3 local-server.py</b></label><br><br>
+    <label for="gifBaseUrl">2. Enter Base Url:</label><br>
+    <input type="text" id="gifBaseUrl" name="gifBaseUrl" placeholder="e.g. http://192.168.50.10:8000/"><br><br>
+    <label for="gifArtName">3. Enter GIF Art filename:</label>
     <input type="text" id="gifArtName" name="gifArtName" placeholder="e.g. bugcat-crowd"><br><br>
     <button onclick="uploadGifArt()">Load Art</button><br><br>
     <a class="update-button" onclick="updatePreference('selectedTheme', 210)">Select</a>
@@ -165,7 +165,8 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
 
       // Use placeholder text if the value is empty
       if (gifBaseUrl === '') {
-        gifBaseUrl = gifBaseUrlInput.placeholder.trim();
+        alert('Please enter Base URL.');
+        return;
       }
 
       var gifArtName = document.getElementById('gifArtName').value.trim();
@@ -185,7 +186,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
           document.getElementById('status').style.display = 'block';
         }
       };
-      xhr.open('POST', '/set?' + "gifArtUrl" + '=' + gifArtName);
+      xhr.open('POST', '/set?' + "gifArtUrl" + '=' + payload);
       xhr.send();
 
       setTimeout(() => {
