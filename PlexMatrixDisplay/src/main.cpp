@@ -1180,21 +1180,87 @@ void handleGifDownload(int httpCode, const String &response)
 
 boolean downloadGifArt(String filename)
 {
-  // Initialize HTTP client
-  HTTPClient http;
-
   // Construct the full URL for the GIF file
   String gifURL = filename + ".gif";
 
-// #ifdef DEBUG
+#ifdef DEBUG
   Serial.println("*************GIF url = " + gifURL);
-// #endif
+#endif
 
   downloadSuccess = false; // Reset download success flag
 
   httpGet(gifURL, "", "", handleGifDownload);
 
   return downloadSuccess;
+}
+
+void httpsDownloadGifArt(String filename)
+{
+  // Initialize HTTP client
+  HTTPClient http;
+
+  // Specify the base URL of the GIF files on raw.githubusercontent.com
+  String gifURL = filename + ".gif";
+
+  // #ifdef DEBUG
+  Serial.println("*************GIF url = " + gifURL);
+  // #endif
+
+  // Start the HTTP request to download the GIF file
+  if (http.begin(gifURL))
+  {
+    int httpCode = http.GET(); // Send GET request
+
+    // Check if the request was successful
+    if (httpCode == HTTP_CODE_OK)
+    {
+      deleteGifArt();
+
+      // Open a file to save the downloaded GIF
+      File file = SPIFFS.open(GIF_ART, FILE_WRITE);
+      if (file)
+      {
+        // Write the response body to the file
+        http.writeToStream(&file);
+        file.close();
+
+        // Check if the file exists
+        if (SPIFFS.exists(GIF_ART))
+        {
+          Serial.println("Successfully downloaded and saved GIF file to SPIFFS");
+          clearScreen();
+          gif.close();
+          gifState = STATE_IDLE;
+          showGIF();
+        }
+        else
+        {
+          Serial.println("Failed to save image to SPIFFS");
+          displayFailureReloadGifArt();
+        }
+      }
+      else
+      {
+        Serial.println("Failed to create file");
+        displayFailureReloadGifArt();
+      }
+    }
+    else
+    {
+      Serial.print("Failed to download image. HTTP error code: ");
+      displayFailureReloadGifArt();
+    }
+    // End the HTTP client
+    http.end();
+  }
+  else
+  {
+    Serial.println("Failed to connect to image URL");
+    clearScreen();
+    printCenter("FAILED TO", 20);
+    printCenter("CONNECT TO", 30);
+    printCenter("IMAGE URL", 40);
+  }
 }
 
 #endif
@@ -1395,6 +1461,13 @@ void processRequest(WiFiClient client, String method, String path, String key, S
 #endif
 
       client.println("HTTP/1.0 204 No Content");
+
+      if (payload.startsWith("https://"))
+      {
+        httpsDownloadGifArt(payload);
+        return;
+      }
+
       bool downloadSuccess = downloadGifArt(payload);
       if (downloadSuccess)
       {
