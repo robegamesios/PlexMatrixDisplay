@@ -1017,7 +1017,7 @@ void GIFDraw(GIFDRAW *pDraw)
     iWidth = MATRIX_WIDTH;
 
   usPalette = pDraw->pPalette;
-  y = pDraw->iY + pDraw->y; // current line
+  y = pDraw->iY + pDraw->y + y_offset; // current line
 
   s = pDraw->pPixels;
   if (pDraw->ucDisposalMethod == 2) // restore to background color
@@ -1086,7 +1086,7 @@ void GIFDraw(GIFDRAW *pDraw)
     // Translate the 8-bit pixels through the RGB565 palette (already byte reversed)
     for (x = 0; x < pDraw->iWidth; x++)
     {
-      dma_display->drawPixel(x, y, usPalette[*s++]); // color 565
+      dma_display->drawPixel(x + x_offset, y, usPalette[*s++]); // color 565
     }
   }
 }
@@ -1112,7 +1112,7 @@ void showGIF()
       if (y_offset < 0)
         y_offset = 0;
 #ifdef DEBUG
-      Serial.printf("Successfully opened GIF; Canvas size = %d x %d\n", gif.getCanvasWidth(), gif.getCanvasHeight());
+      Serial.printf("Successfully opened GIF; Canvas size = %d x %d; offset x = %d y = %d\n", gif.getCanvasWidth(), gif.getCanvasHeight(), x_offset, y_offset);
 #endif
       gifState = STATE_PLAY_GIF;
     }
