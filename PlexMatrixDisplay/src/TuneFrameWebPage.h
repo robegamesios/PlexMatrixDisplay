@@ -149,8 +149,8 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
 <div class="card">
     <h2 class="card-title">Animated GIF Art</h2>
     <p class="card-description">Displays Animated GIF Art.<br><br></p>
-    <img class="card-image" src="https://github.com/robegamesios/TUNEFRAME/blob/69e324d0c167bee8b14c07ef81a7afce4074ad97/thumbnails/websiteIcons/bugcat-capoo.gif?raw=true" alt="Animated GIF Art">
-    <label for="instruction">1. Run on terminal: <b>python3 local-server.py</b></label><br><br>
+    <img class="card-image" src="https://github.com/robegamesios/TUNEFRAME/blob/69e324d0c167bee8b14c07ef81a7afce4074ad97/thumbnails/websiteIcons/bugcat-capoo.gif?raw=true" alt="Animated GIF Art"><br><br>
+    <label for="instruction">1. For Local Server, run: <b>python3 local-server.py</b></label><br><br>
     <label for="gifBaseUrl">2. Enter Base Url:</label><br>
     <input type="text" id="gifBaseUrl" name="gifBaseUrl" placeholder="e.g. http://192.168.50.10:8000/"><br><br>
     <label for="gifArtName">3. Enter GIF Art filename:</label>
