@@ -79,13 +79,13 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
 
 <div class="card">
     <h2 class="card-title">Weather Clock</h2>
-    <p class="card-description">Displays weather info from openweather.org.</p>
+    <p class="card-description">Displays weather info from <b>openweathermap.org.</b></p>
     <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/main/thumbnails/websiteIcons/weatherIcon.jpg?raw=true" alt="Weather Station">
     <label for="cityName">City Name:</label>
     <input type="text" id="cityName" name="cityName" placeholder="e.g. Palo Alto"><br><br>
      <label for="countryCode">Country Code:</label>
     <input type="text" id="countryCode" name="countryCode" placeholder="e.g. US"><br><br>
-    <label for="openweatherApiKey">OpenWeather.org API Key:</label>
+    <label for="openweatherApiKey">API Key:</label>
     <input type="text" id="openweatherApiKey" name="openweatherApiKey"><br><br>
     <select id="weatherUnitSelect" name='option'>
     <option value='0' title='Select Unit'>Select Unit</option>
