@@ -78,13 +78,13 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
   </div>
 
 <div class="card">
-    <h2 class="card-title">Weather Station</h2>
+    <h2 class="card-title">Weather Clock</h2>
     <p class="card-description">Displays weather info from openweather.org.</p>
     <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/main/thumbnails/websiteIcons/weatherIcon.jpg?raw=true" alt="Weather Station">
-    <label for="cityName">City Name: e.g Palo Alto</label>
-    <input type="text" id="cityName" name="cityName"><br><br>
-     <label for="countryCode">Country Code: e.g. US</label>
-    <input type="text" id="countryCode" name="countryCode"><br><br>
+    <label for="cityName">City Name:</label>
+    <input type="text" id="cityName" name="cityName" placeholder="e.g. Palo Alto"><br><br>
+     <label for="countryCode">Country Code:</label>
+    <input type="text" id="countryCode" name="countryCode" placeholder="e.g. US"><br><br>
     <label for="openweatherApiKey">OpenWeather.org API Key:</label>
     <input type="text" id="openweatherApiKey" name="openweatherApiKey"><br><br>
     <select id="weatherUnitSelect" name='option'>
@@ -124,9 +124,9 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
     <p class="card-description">Displays PlexAmp Album Art.</p>
     <img class="card-image" src="https://github.com/robegamesios/PlexMatrixDisplay/blob/main/thumbnails/websiteIcons/plexampIcon.png?raw=true" alt="PlexAmp Album Art">
     <label for="serverAddress">Server Address:</label>
-    <input type="text" id="serverAddress" name="serverAddress"><br><br>
+    <input type="text" id="serverAddress" name="serverAddress" placeholder="e.g. 10.0.0.210"><br><br>
      <label for="serverPort">Server Port Number:</label>
-    <input type="text" id="serverPort" name="serverPort"><br><br>
+    <input type="text" id="serverPort" name="serverPort" placeholder="e.g. 32400"><br><br>
     <label for="authToken">Auth Token:</label>
     <input type="text" id="authToken" name="authToken"><br><br>
     <button onclick="updatePlexCredentials()">Save Settings</button><br><br>
@@ -146,11 +146,67 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
     <button onclick="updateSpotifyCredentials()">Save Settings</button><br><br>
     <a class="update-button" onclick="updatePreference('selectedTheme', 201)">Select</a>
 </div>
+<div class="card">
+    <h2 class="card-title">Animated GIF Art</h2>
+    <p class="card-description">Displays Animated GIF Art.<br><br></p>
+    <img class="card-image" src="https://github.com/robegamesios/TUNEFRAME/blob/69e324d0c167bee8b14c07ef81a7afce4074ad97/thumbnails/websiteIcons/bugcat-capoo.gif?raw=true" alt="Animated GIF Art"><br><br>
+    <label for="instruction">1. For Local Server, run: <b>python3 local-server.py</b></label><br><br>
+    <label for="gifBaseUrl">2. Enter Base Url:</label><br>
+    <input type="text" id="gifBaseUrl" name="gifBaseUrl" placeholder="e.g. http://192.168.50.10:8000/"><br><br>
+    <label for="gifArtName">3. Enter GIF Art filename:</label>
+    <input type="text" id="gifArtName" name="gifArtName" placeholder="e.g. bugcat-crowd"><br><br>
+    <input type="checkbox" id="yes" name="yes" value="yes">
+    <label for="yesNo">Show Time & Weather.</label>
+    <label for="note">Note: You need to <b>setup Weather Clock</b> for this to work.</label><br><br>
+    <button onclick="uploadGifArt()">Load Art</button><br><br>
+    <a class="update-button" onclick="updatePreference('selectedTheme', 210)">Select</a>
+</div>
   <script>
+    var yesCheckbox = document.getElementById('yes');
+    yesCheckbox.addEventListener('change', function() {
+
+        const xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function () {
+          if (this.readyState == 4 && this.status >= 200 && this.status < 299) {
+            document.getElementById('status').style.display = 'block';
+          }
+        };
+        xhr.open('POST', '/set?displayGifTimeAndWeather' + '=' + this.checked);
+        xhr.send();
+
+        setTimeout(() => {
+          document.getElementById('status').style.display = 'none';
+        }, 2000);        
+
+        if (this.checked) {
+            console.log('Yes checkbox is checked');
+            // Do something when the Yes checkbox is checked
+        } else {
+            console.log('Yes checkbox is unchecked');
+            // Do something when the Yes checkbox is unchecked
+        }
+    });
+
     function uploadGifArt() {
-      var selectElement = document.getElementById('gifOptionSelect');
-      var selectedOption = selectElement.options[selectElement.selectedIndex];
-      var title = selectedOption.title;
+      var gifBaseUrlInput = document.getElementById('gifBaseUrl');
+      var gifBaseUrl = gifBaseUrlInput.value.trim();
+
+      // Use placeholder text if the value is empty
+      if (gifBaseUrl === '') {
+        alert('Please enter Base URL.');
+        return;
+      }
+
+      var gifArtName = document.getElementById('gifArtName').value.trim();
+
+      // Ensure gifArtName is not empty
+      if (gifArtName === '') {
+        alert('Please enter GIF Art filename.');
+        return;
+      }
+
+      // Construct the full URL
+      var payload = gifBaseUrl + gifArtName;
 
       const xhr = new XMLHttpRequest();
       xhr.onreadystatechange = function () {
@@ -158,7 +214,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
           document.getElementById('status').style.display = 'block';
         }
       };
-      xhr.open('POST', '/set?' + "gifArtName" + '=' + title);
+      xhr.open('POST', '/set?' + "gifArtUrl" + '=' + payload);
       xhr.send();
 
       setTimeout(() => {
@@ -289,11 +345,6 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
       xhr.open('POST', '/reset-wifi');
       xhr.send();
     }
-
-    // Call fetchOptions() function when the page loads
-    window.onload = function() {
-        fetchGifOptions();
-    };
 
   </script>
 </body>

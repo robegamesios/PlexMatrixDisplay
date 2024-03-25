@@ -2,7 +2,7 @@
 #define AUDIO_VISUALIZER_THEME 100
 #define PLEX_ALBUM_ART_THEME 200
 #define SPOTIFY_ALBUM_ART_THEME 201
-#define GIF_ART_THEME 210
+#define ANIMATED_GIF_THEME 210
 
 // #define DEBUG // UnComment to see debug prints
 
@@ -12,6 +12,7 @@
 #include "WeatherClock.h"
 #include "PlexAmpLogic.h"
 #include "SpotifyLogic.h"
+#include "AnimatedGifLogic.h"
 #include "jRead.h"
 
 // ******************************************* BEGIN GLOBAL VARS AND COMMON FUNC ******************************
@@ -52,6 +53,11 @@ ThemeInfo getThemeInfo()
   {
     return ThemeInfo("SPOTIFY ART", "spotifyArt_FW");
   }
+  else if (selectedTheme == ANIMATED_GIF_THEME)
+  {
+    return ThemeInfo("ANIMATED GIF ART", "animatedGifArt_FW");
+  }
+
   return ThemeInfo("UNKNOWN THEME", "");
 }
 
@@ -130,6 +136,18 @@ void displayMusicPaused()
   }
 }
 
+void displayFailureReloadGifArt()
+{
+#ifdef DEBUG
+  Serial.println("cannot open gif file");
+#endif
+
+  printCenter("FAILURE..", 15, myRED);
+  printCenter("TRY LOADING", 25, myRED);
+  printCenter("GIF ART AGAIN", 35, myRED);
+  printCenter("FROM BROWSER", 45, myRED);
+}
+
 void restartDevice()
 {
   clearScreen();
@@ -155,10 +173,11 @@ void resetWifi()
 Preferences preferences;
 const char *PREF_SELECTED_THEME = "selectedTheme";
 const char *PREF_AV_PATTERN = "avPattern";
-const char *PREF_GIF_ART_NAME = "gifArtName";
+const char *PREF_GIF_ART_URL = "gifArtUrl";
 const char *PREF_WEATHER_STATION_CREDENTIALS = "weatherStationCredentials";
 const char *PREF_PLEX_CREDENTIALS = "plexCredentials";
 const char *PREF_SPOTIFY_CREDENTIALS = "spotifyCredentials";
+const char *PREF_DISPLAY_GIF_TIME_AND_WEATHER = "displayGifTimeAndWeather";
 
 void savePreferences()
 {
@@ -176,7 +195,14 @@ void loadPreferences()
 // ******************************************* BEGIN CLOCK ****************************************************
 #pragma region CLOCK
 
-#ifdef WEATHERCLOCK_MODE
+#if defined(WEATHERCLOCK_MODE) || defined(ANIMATEDGIF_MODE)
+
+unsigned long lastWeatherUpdateTime = 0;
+unsigned long lastClockUpdateTime = 0;
+const unsigned long weatherUpdateInterval = 600000; // 10 minutes
+const unsigned long clockUpdateInterval = 1000;     // 1 second
+
+bool displayGifTimeAndWeather = false;
 
 void getDateAndTime()
 {
@@ -184,11 +210,15 @@ void getDateAndTime()
   scrollingText = localTime;
 }
 
+#endif
+
 #pragma endregion
 // ******************************************* END CLOCK ******************************************************
 
 // ******************************************* BEGIN WEATHER **************************************************
 #pragma region WEATHER
+
+#ifdef WEATHERCLOCK_MODE
 
 #include "weatherIcons.h"
 
@@ -296,6 +326,10 @@ void displayWeatherData(WeatherData data)
   getDateAndTime();
 }
 
+#endif
+
+#if defined(WEATHERCLOCK_MODE) || defined(ANIMATEDGIF_MODE)
+
 void getWeatherInfo()
 {
   String city = String(weatherCityName);
@@ -317,12 +351,36 @@ void getWeatherInfo()
 
       const char *jsonCString = httpResponse.c_str();
       WeatherData data = processWeatherJson(jsonCString);
+
+#ifdef WEATHERCLOCK_MODE
       displayWeatherData(data);
+#elif ANIMATEDGIF_MODE
+      lowerScrollingText = data.fullInfo.c_str();
+#endif
 
     } else {
       Serial.print("Error code: ");
       Serial.println(httpCode);
     } });
+}
+
+void fetchWeatherAndTime()
+{
+  unsigned long currentMillis = millis();
+
+  if (currentMillis - lastClockUpdateTime >= clockUpdateInterval)
+  {
+    lastClockUpdateTime = currentMillis;
+    getDateAndTime();
+  }
+
+  if (currentMillis - lastWeatherUpdateTime >= weatherUpdateInterval)
+  {
+    lastWeatherUpdateTime = currentMillis;
+    getWeatherInfo();
+  }
+  printScrolling(scrollingText.c_str(), 5, myBLUE);
+  printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
 }
 
 #endif
@@ -520,8 +578,8 @@ void processSpotifyJson(const char *pJson)
     return;
   }
 
-    scrollingText = trackTitle;
-    lowerScrollingText = artistName;
+  scrollingText = trackTitle;
+  lowerScrollingText = artistName;
 
   if (albumArtUrl != lastAlbumArtURL)
   {
@@ -982,6 +1040,278 @@ void updateAudioVisualizerSettings(int pattern)
 #pragma endregion
 // ******************************************* END AUDIO VISUALIZER *******************************************
 
+// ******************************************* BEGIN GIF PLAYER ***********************************************
+#pragma region GIF_PLAYER
+
+#ifdef ANIMATEDGIF_MODE
+
+// Draw a line of image directly on the LED Matrix
+void GIFDraw(GIFDRAW *pDraw)
+{
+  uint8_t *s;
+  uint16_t *d, *usPalette, usTemp[320];
+  int x, y, iWidth;
+
+  iWidth = pDraw->iWidth;
+  if (iWidth > MATRIX_WIDTH)
+    iWidth = MATRIX_WIDTH;
+
+  usPalette = pDraw->pPalette;
+  y = pDraw->iY + pDraw->y + y_offset; // current line
+
+  if (displayGifTimeAndWeather && (y < 7 || y > 56))
+  {
+    return;
+  }
+  s = pDraw->pPixels;
+  if (pDraw->ucDisposalMethod == 2) // restore to background color
+  {
+    for (x = 0; x < iWidth; x++)
+    {
+      if (s[x] == pDraw->ucTransparent)
+        s[x] = pDraw->ucBackground;
+    }
+    pDraw->ucHasTransparency = 0;
+  }
+  // Apply the new pixels to the main image
+  if (pDraw->ucHasTransparency) // if transparency used
+  {
+    uint8_t *pEnd, c, ucTransparent = pDraw->ucTransparent;
+    int x, iCount;
+    pEnd = s + pDraw->iWidth;
+    x = 0;
+    iCount = 0; // count non-transparent pixels
+    while (x < pDraw->iWidth)
+    {
+      c = ucTransparent - 1;
+      d = usTemp;
+      while (c != ucTransparent && s < pEnd)
+      {
+        c = *s++;
+        if (c == ucTransparent) // done, stop
+        {
+          s--; // back up to treat it like transparent
+        }
+        else // opaque
+        {
+          *d++ = usPalette[c];
+          iCount++;
+        }
+      }           // while looking for opaque pixels
+      if (iCount) // any opaque pixels?
+      {
+        for (int xOffset = 0; xOffset < iCount; xOffset++)
+        {
+          dma_display->drawPixel(x + xOffset, y, usTemp[xOffset]); // 565 Color Format
+        }
+        x += iCount;
+        iCount = 0;
+      }
+      // no, look for a run of transparent pixels
+      c = ucTransparent;
+      while (c == ucTransparent && s < pEnd)
+      {
+        c = *s++;
+        if (c == ucTransparent)
+          iCount++;
+        else
+          s--;
+      }
+      if (iCount)
+      {
+        x += iCount; // skip these
+        iCount = 0;
+      }
+    }
+  }
+  else // does not have transparency
+  {
+    s = pDraw->pPixels;
+    // Translate the 8-bit pixels through the RGB565 palette (already byte reversed)
+    for (x = 0; x < pDraw->iWidth; x++)
+    {
+      dma_display->drawPixel(x + x_offset, y, usPalette[*s++]); // color 565
+    }
+  }
+}
+
+void showGIF()
+{
+  switch (gifState)
+  {
+  case STATE_IDLE:
+    if (SPIFFS.exists(GIF_ART))
+    {
+      gifState = STATE_OPEN_GIF;
+    }
+    break;
+
+  case STATE_OPEN_GIF:
+    if (gif.open(GIF_ART, GIFOpenFile, GIFCloseFile, GIFReadFile, GIFSeekFile, GIFDraw))
+    {
+      x_offset = (MATRIX_WIDTH - gif.getCanvasWidth()) / 2;
+      if (x_offset < 0)
+        x_offset = 0;
+      y_offset = (MATRIX_HEIGHT - gif.getCanvasHeight()) / 2;
+      if (y_offset < 0)
+        y_offset = 0;
+#ifdef DEBUG
+      Serial.printf("Successfully opened GIF; Canvas size = %d x %d; offset x = %d y = %d\n", gif.getCanvasWidth(), gif.getCanvasHeight(), x_offset, y_offset);
+#endif
+      gifState = STATE_PLAY_GIF;
+    }
+    else
+    {
+      displayFailureReloadGifArt();
+    }
+    break;
+
+  case STATE_PLAY_GIF:
+    // Play a single frame
+    if (!gif.playFrame(true, NULL))
+    {
+      // If the playback reaches the end, close the GIF file
+      gif.close();
+      gifState = STATE_IDLE;
+    }
+    break;
+
+  case STATE_CLOSE_GIF:
+    // Close the GIF file
+    gif.close();
+    gifState = STATE_IDLE;
+    break;
+  }
+}
+
+boolean downloadSuccess = false; // Global variable to track download success
+
+void handleGifDownload(int httpCode, const String &response)
+{
+  if (httpCode == HTTP_CODE_OK)
+  {
+    deleteGifArt();
+
+    // Open a file to save the downloaded GIF
+    File file = SPIFFS.open(GIF_ART, FILE_WRITE);
+    if (file)
+    {
+      file.print(response);
+      file.close();
+
+      // Check if the file exists
+      if (SPIFFS.exists(GIF_ART))
+      {
+        Serial.println("Image downloaded and saved successfully");
+        downloadSuccess = true;
+      }
+      else
+      {
+        Serial.println("Failed to save image to SPIFFS");
+      }
+    }
+    else
+    {
+      Serial.println("Failed to create file");
+    }
+  }
+  else
+  {
+    Serial.print("Failed to download image. HTTP error code: ");
+    Serial.println(httpCode);
+  }
+}
+
+boolean downloadGifArt(String filename)
+{
+  // Construct the full URL for the GIF file
+  String gifURL = filename + ".gif";
+
+#ifdef DEBUG
+  Serial.println("*************GIF url = " + gifURL);
+#endif
+
+  downloadSuccess = false; // Reset download success flag
+
+  httpGet(gifURL, "", "", handleGifDownload);
+
+  return downloadSuccess;
+}
+
+void httpsDownloadGifArt(String filename)
+{
+  // Initialize HTTP client
+  HTTPClient http;
+
+  // Specify the base URL of the GIF files on raw.githubusercontent.com
+  String gifURL = filename + ".gif";
+
+  // #ifdef DEBUG
+  Serial.println("*************GIF url = " + gifURL);
+  // #endif
+
+  // Start the HTTP request to download the GIF file
+  if (http.begin(gifURL))
+  {
+    int httpCode = http.GET(); // Send GET request
+
+    // Check if the request was successful
+    if (httpCode == HTTP_CODE_OK)
+    {
+      deleteGifArt();
+
+      // Open a file to save the downloaded GIF
+      File file = SPIFFS.open(GIF_ART, FILE_WRITE);
+      if (file)
+      {
+        // Write the response body to the file
+        http.writeToStream(&file);
+        file.close();
+
+        // Check if the file exists
+        if (SPIFFS.exists(GIF_ART))
+        {
+          Serial.println("Successfully downloaded and saved GIF file to SPIFFS");
+          clearScreen();
+          gif.close();
+          gifState = STATE_IDLE;
+          showGIF();
+        }
+        else
+        {
+          Serial.println("Failed to save image to SPIFFS");
+          displayFailureReloadGifArt();
+        }
+      }
+      else
+      {
+        Serial.println("Failed to create file");
+        displayFailureReloadGifArt();
+      }
+    }
+    else
+    {
+      Serial.print("Failed to download image. HTTP error code: ");
+      displayFailureReloadGifArt();
+    }
+    // End the HTTP client
+    http.end();
+  }
+  else
+  {
+    Serial.println("Failed to connect to image URL");
+    clearScreen();
+    printCenter("FAILED TO", 20);
+    printCenter("CONNECT TO", 30);
+    printCenter("IMAGE URL", 40);
+  }
+}
+
+#endif
+
+#pragma endregion
+// ******************************************* END GIF PLAYER **************************************************
+
 // ******************************************* BEGIN WIFI SERVER ***********************************************
 #pragma region WEBSERVER
 
@@ -1076,14 +1406,6 @@ void processRequest(WiFiClient client, String method, String path, String key, S
       return;
     }
 
-    if (key == PREF_GIF_ART_NAME)
-    {
-      String payload = value;
-      Serial.println("Received payload: " + payload);
-      client.println("HTTP/1.0 204 No Content");
-      return;
-    }
-
 #ifdef AV_MODE
     if (key == PREF_AV_PATTERN)
     {
@@ -1172,6 +1494,55 @@ void processRequest(WiFiClient client, String method, String path, String key, S
       force_restart = true;
       return;
     }
+
+#ifdef ANIMATEDGIF_MODE
+    if (key == PREF_GIF_ART_URL)
+    {
+      String payload = value;
+
+#ifdef DEBUG
+      Serial.println("Received payload: " + payload);
+#endif
+
+      client.println("HTTP/1.0 204 No Content");
+
+      if (payload.startsWith("https://"))
+      {
+        httpsDownloadGifArt(payload);
+        return;
+      }
+
+      bool downloadSuccess = downloadGifArt(payload);
+      if (downloadSuccess)
+      {
+        clearScreen();
+        gif.close();
+        gifState = STATE_IDLE;
+        showGIF();
+      }
+      else
+      {
+#ifdef DEBUG
+        Serial.println("******** Failed to show GIF");
+#endif
+
+        clearScreen();
+        printCenter("FAILED TO", 20, myRED);
+        printCenter("SHOW GIF ART", 30, myRED);
+        gif.close();
+        gifState = STATE_IDLE;
+      }
+      return;
+    }
+
+    if (key == PREF_DISPLAY_GIF_TIME_AND_WEATHER)
+    {
+      displayGifTimeAndWeather = value == "true" && fetchWeatherConfigFile();
+
+      client.println("HTTP/1.0 204 No Content");
+    }
+
+#endif
   }
 }
 
@@ -1230,10 +1601,6 @@ void handleHttpRequest()
 
 int failedConnectionAttempts = 0;
 const int MAX_FAILED_ATTEMPTS = 5;
-unsigned long lastWeatherUpdateTime = 0;
-unsigned long lastClockUpdateTime = 0;
-const unsigned long weatherUpdateInterval = 600000; // 10 minutes
-const unsigned long clockUpdateInterval = 1000;     // 1 second
 unsigned long lastAlbumArtUpdateTime = 0;
 const unsigned long albumArtUpdateInterval = 5000; // 5 seconds
 
@@ -1319,6 +1686,8 @@ void setup()
 #elif defined(SPOTIFY_MODE)
 #define CURRENT_ENV SPOTIFY_ALBUM_ART_THEME
 
+#elif defined(ANIMATEDGIF_MODE)
+#define CURRENT_ENV ANIMATED_GIF_THEME
 #endif
 
   if (selectedTheme != CURRENT_ENV)
@@ -1362,7 +1731,7 @@ void setup()
     return;
   }
 
-#ifdef WEATHERCLOCK_MODE
+#if defined(WEATHERCLOCK_MODE) || defined(ANIMATEDGIF_MODE)
   // get the weather
   if (fetchWeatherConfigFile())
   {
@@ -1397,6 +1766,10 @@ void setup()
   }
 #endif
 
+#ifdef ANIMATEDGIF_MODE
+// setup for Animated GIF
+#endif
+
   server.begin();
 }
 
@@ -1406,22 +1779,8 @@ void loop()
   {
     handleHttpRequest();
 
-#ifdef WEATHERCLOCK_MODE
-    unsigned long currentMillis = millis();
-
-    if (currentMillis - lastClockUpdateTime >= clockUpdateInterval)
-    {
-      lastClockUpdateTime = currentMillis;
-      getDateAndTime();
-    }
-
-    if (currentMillis - lastWeatherUpdateTime >= weatherUpdateInterval)
-    {
-      lastWeatherUpdateTime = currentMillis;
-      getWeatherInfo();
-    }
-    printScrolling(scrollingText.c_str(), 5, myBLUE);
-    printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
+#if defined(WEATHERCLOCK_MODE)
+    fetchWeatherAndTime();
 #endif
 
 #ifdef AV_MODE
@@ -1431,7 +1790,7 @@ void loop()
 #ifdef PLEXAMP_MODE
     unsigned long currentMillis = millis();
 
-    if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval && !isTextScrolling && !isTextScrolling2) //!isTextScrolling && !isTextScrolling2 is just a work around for scrolling text to not pause when polling is done
+    if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval && !isTextScrolling && !isTextScrolling2) //! isTextScrolling && !isTextScrolling2 is just a work around for scrolling text to not pause when polling is done
     {
       lastAlbumArtUpdateTime = currentMillis;
       getPlexCurrentTrack();
@@ -1443,7 +1802,7 @@ void loop()
 #ifdef SPOTIFY_MODE
     unsigned long currentMillis = millis();
 
-    if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval && !isTextScrolling && !isTextScrolling2) //!isTextScrolling && !isTextScrolling2 is just a work around for scrolling text to not pause when polling is done
+    if (currentMillis - lastAlbumArtUpdateTime >= albumArtUpdateInterval && !isTextScrolling && !isTextScrolling2) //! isTextScrolling && !isTextScrolling2 is just a work around for scrolling text to not pause when polling is done
     {
       lastAlbumArtUpdateTime = currentMillis;
       getSpotifyCurrentTrack();
@@ -1455,6 +1814,14 @@ void loop()
     }
     printScrolling(scrollingText.c_str(), 5, myBLUE);
     printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
+#endif
+
+#ifdef ANIMATEDGIF_MODE
+    if (displayGifTimeAndWeather)
+    {
+      fetchWeatherAndTime();
+    }
+    showGIF();
 #endif
   }
 }
