@@ -13,7 +13,7 @@ char weatherCountryCode[6];
 char weatherApikey[64];
 char weatherUnit[2] = "0";
 
-#ifdef WEATHERCLOCK_MODE
+#if defined(WEATHERCLOCK_MODE) || defined(ANIMATEDGIF_MODE)
 
 #include <cstring>
 #include <string>
@@ -90,9 +90,10 @@ struct WeatherData
     std::string tempMin;
     std::string tempMax;
     std::string extraInfo;
+    std::string fullInfo;
 
-    WeatherData(std::string icon, std::string city, std::string temp, std::string feels, std::string hum, std::string min, std::string max, std::string extra)
-        : weatherIcon(icon), cityName(city), temperature(temp), feelsLike(feels), humidity(hum), tempMin(min), tempMax(max), extraInfo(extra) {}
+    WeatherData(std::string icon, std::string city, std::string temp, std::string feels, std::string hum, std::string min, std::string max, std::string extra, std::string full)
+        : weatherIcon(icon), cityName(city), temperature(temp), feelsLike(feels), humidity(hum), tempMin(min), tempMax(max), extraInfo(extra), fullInfo(full) {}
 };
 
 std::string degreesToDirection(int degrees)
@@ -194,6 +195,7 @@ WeatherData processWeatherJson(const char *pJson)
     float temp = jRead_float(pJson, "{'main'{'temp'");
     int tempInt = (int)temp;
     std::string tempString = std::to_string(tempInt);
+    std::string tempWithUnitsString = "Curr: " + std::to_string(tempInt) + tempUnit;
 
     float feelsLike = jRead_float(pJson, "{'main'{'feels_like'");
     int feelsLikeInt = (int)feelsLike;
@@ -240,12 +242,14 @@ WeatherData processWeatherJson(const char *pJson)
 
     std::string extraInfo = uppercasedDescription + "    " + sunriseString + "    " + sunsetString + "    " + pressureString + "    " + windString;
 
+    std::string fullInfo =  tempWithUnitsString + "    " + tempMinString + "    " + tempMaxString + "    " + uppercasedDescription + "    " + sunriseString + "    " + sunsetString + "    " + humidityString + "    " + pressureString + "    " + windString;
+
     // display the info to LED Matrix
     String cleanCityName = String(weatherCityName);
     cleanCityName.replace("%20", " ");
     std::string uppercasedCityName = HelperFunctions::toUpperCase(cleanCityName.c_str());
 
-    WeatherData weatherData(icon, uppercasedCityName, tempString, feelsLikeString, humidityString, tempMinString, tempMaxString, extraInfo);
+    WeatherData weatherData(icon, uppercasedCityName, tempString, feelsLikeString, humidityString, tempMinString, tempMaxString, extraInfo, fullInfo);
 
     return weatherData;
 }

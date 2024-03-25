@@ -177,6 +177,7 @@ const char *PREF_GIF_ART_URL = "gifArtUrl";
 const char *PREF_WEATHER_STATION_CREDENTIALS = "weatherStationCredentials";
 const char *PREF_PLEX_CREDENTIALS = "plexCredentials";
 const char *PREF_SPOTIFY_CREDENTIALS = "spotifyCredentials";
+const char *PREF_DISPLAY_GIF_TIME_AND_WEATHER = "displayGifTimeAndWeather";
 
 void savePreferences()
 {
@@ -194,7 +195,14 @@ void loadPreferences()
 // ******************************************* BEGIN CLOCK ****************************************************
 #pragma region CLOCK
 
-#ifdef WEATHERCLOCK_MODE
+#if defined(WEATHERCLOCK_MODE) || defined(ANIMATEDGIF_MODE)
+
+unsigned long lastWeatherUpdateTime = 0;
+unsigned long lastClockUpdateTime = 0;
+const unsigned long weatherUpdateInterval = 600000; // 10 minutes
+const unsigned long clockUpdateInterval = 1000;     // 1 second
+
+bool displayGifTimeAndWeather = false;
 
 void getDateAndTime()
 {
@@ -202,11 +210,15 @@ void getDateAndTime()
   scrollingText = localTime;
 }
 
+#endif
+
 #pragma endregion
 // ******************************************* END CLOCK ******************************************************
 
 // ******************************************* BEGIN WEATHER **************************************************
 #pragma region WEATHER
+
+#ifdef WEATHERCLOCK_MODE
 
 #include "weatherIcons.h"
 
@@ -314,6 +326,10 @@ void displayWeatherData(WeatherData data)
   getDateAndTime();
 }
 
+#endif
+
+#if defined(WEATHERCLOCK_MODE) || defined(ANIMATEDGIF_MODE)
+
 void getWeatherInfo()
 {
   String city = String(weatherCityName);
@@ -335,12 +351,36 @@ void getWeatherInfo()
 
       const char *jsonCString = httpResponse.c_str();
       WeatherData data = processWeatherJson(jsonCString);
+
+#ifdef WEATHERCLOCK_MODE
       displayWeatherData(data);
+#elif ANIMATEDGIF_MODE
+      lowerScrollingText = data.fullInfo.c_str();
+#endif
 
     } else {
       Serial.print("Error code: ");
       Serial.println(httpCode);
     } });
+}
+
+void fetchWeatherAndTime()
+{
+  unsigned long currentMillis = millis();
+
+  if (currentMillis - lastClockUpdateTime >= clockUpdateInterval)
+  {
+    lastClockUpdateTime = currentMillis;
+    getDateAndTime();
+  }
+
+  if (currentMillis - lastWeatherUpdateTime >= weatherUpdateInterval)
+  {
+    lastWeatherUpdateTime = currentMillis;
+    getWeatherInfo();
+  }
+  printScrolling(scrollingText.c_str(), 5, myBLUE);
+  printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
 }
 
 #endif
@@ -1019,6 +1059,10 @@ void GIFDraw(GIFDRAW *pDraw)
   usPalette = pDraw->pPalette;
   y = pDraw->iY + pDraw->y + y_offset; // current line
 
+  if (displayGifTimeAndWeather && (y < 7 || y > 56))
+  {
+    return;
+  }
   s = pDraw->pPixels;
   if (pDraw->ucDisposalMethod == 2) // restore to background color
   {
@@ -1490,6 +1534,14 @@ void processRequest(WiFiClient client, String method, String path, String key, S
       }
       return;
     }
+
+    if (key == PREF_DISPLAY_GIF_TIME_AND_WEATHER)
+    {
+      displayGifTimeAndWeather = value == "true" && fetchWeatherConfigFile();
+
+      client.println("HTTP/1.0 204 No Content");
+    }
+
 #endif
   }
 }
@@ -1549,10 +1601,6 @@ void handleHttpRequest()
 
 int failedConnectionAttempts = 0;
 const int MAX_FAILED_ATTEMPTS = 5;
-unsigned long lastWeatherUpdateTime = 0;
-unsigned long lastClockUpdateTime = 0;
-const unsigned long weatherUpdateInterval = 600000; // 10 minutes
-const unsigned long clockUpdateInterval = 1000;     // 1 second
 unsigned long lastAlbumArtUpdateTime = 0;
 const unsigned long albumArtUpdateInterval = 5000; // 5 seconds
 
@@ -1642,48 +1690,48 @@ void setup()
 #define CURRENT_ENV ANIMATED_GIF_THEME
 #endif
 
-  // if (selectedTheme != CURRENT_ENV)
-  // {
-  //   Serial.print("starting update of TuneFrame Firmware");
-  //   // update firmware to canvas
-  //   WiFiClientSecure client;
-  //   client.setInsecure();
+  if (selectedTheme != CURRENT_ENV)
+  {
+    Serial.print("starting update of TuneFrame Firmware");
+    // update firmware to canvas
+    WiFiClientSecure client;
+    client.setInsecure();
 
-  //   // Reading data over SSL may be slow, use an adequate timeout
-  //   client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
+    // Reading data over SSL may be slow, use an adequate timeout
+    client.setTimeout(12000 / 1000); // timeout argument is defined in seconds for setTimeout
 
-  //   printCenter(ipAddressString, 10, myBLUE);
-  //   printCenter("Loading..", 20, myORANGE);
-  //   String title = getThemeInfo().title;
-  //   String filename = getThemeInfo().filename;
-  //   printCenter(title.c_str(), 30, myPURPLE);
+    printCenter(ipAddressString, 10, myBLUE);
+    printCenter("Loading..", 20, myORANGE);
+    String title = getThemeInfo().title;
+    String filename = getThemeInfo().filename;
+    printCenter(title.c_str(), 30, myPURPLE);
 
-  //   httpUpdate.onProgress(update_progress);
+    httpUpdate.onProgress(update_progress);
 
-  //   String baseUrl = "https://raw.githubusercontent.com/robegamesios/TUNEFRAME/main/binFiles/";
+    String baseUrl = "https://raw.githubusercontent.com/robegamesios/TUNEFRAME/main/binFiles/";
 
-  //   String firmwareUrl = baseUrl + filename + ".bin";
+    String firmwareUrl = baseUrl + filename + ".bin";
 
-  //   t_httpUpdate_return ret = httpUpdate.update(client, firmwareUrl);
+    t_httpUpdate_return ret = httpUpdate.update(client, firmwareUrl);
 
-  //   switch (ret)
-  //   {
-  //   case HTTP_UPDATE_FAILED:
-  //     Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
-  //     break;
+    switch (ret)
+    {
+    case HTTP_UPDATE_FAILED:
+      Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+      break;
 
-  //   case HTTP_UPDATE_NO_UPDATES:
-  //     Serial.println("HTTP_UPDATE_NO_UPDATES");
-  //     break;
+    case HTTP_UPDATE_NO_UPDATES:
+      Serial.println("HTTP_UPDATE_NO_UPDATES");
+      break;
 
-  //   case HTTP_UPDATE_OK:
-  //     Serial.println("HTTP_UPDATE_OK");
-  //     break;
-  //   }
-  //   return;
-  // }
+    case HTTP_UPDATE_OK:
+      Serial.println("HTTP_UPDATE_OK");
+      break;
+    }
+    return;
+  }
 
-#ifdef WEATHERCLOCK_MODE
+#if defined(WEATHERCLOCK_MODE) || defined(ANIMATEDGIF_MODE)
   // get the weather
   if (fetchWeatherConfigFile())
   {
@@ -1731,22 +1779,8 @@ void loop()
   {
     handleHttpRequest();
 
-#ifdef WEATHERCLOCK_MODE
-    unsigned long currentMillis = millis();
-
-    if (currentMillis - lastClockUpdateTime >= clockUpdateInterval)
-    {
-      lastClockUpdateTime = currentMillis;
-      getDateAndTime();
-    }
-
-    if (currentMillis - lastWeatherUpdateTime >= weatherUpdateInterval)
-    {
-      lastWeatherUpdateTime = currentMillis;
-      getWeatherInfo();
-    }
-    printScrolling(scrollingText.c_str(), 5, myBLUE);
-    printScrolling2(lowerScrollingText.c_str(), 62, myBLUE);
+#if defined(WEATHERCLOCK_MODE)
+    fetchWeatherAndTime();
 #endif
 
 #ifdef AV_MODE
@@ -1783,6 +1817,10 @@ void loop()
 #endif
 
 #ifdef ANIMATEDGIF_MODE
+    if (displayGifTimeAndWeather)
+    {
+      fetchWeatherAndTime();
+    }
     showGIF();
 #endif
   }

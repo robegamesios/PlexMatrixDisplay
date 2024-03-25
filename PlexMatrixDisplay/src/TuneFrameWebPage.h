@@ -155,10 +155,38 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
     <input type="text" id="gifBaseUrl" name="gifBaseUrl" placeholder="e.g. http://192.168.50.10:8000/"><br><br>
     <label for="gifArtName">3. Enter GIF Art filename:</label>
     <input type="text" id="gifArtName" name="gifArtName" placeholder="e.g. bugcat-crowd"><br><br>
+    <input type="checkbox" id="yes" name="yes" value="yes">
+    <label for="yesNo">Show Time & Weather.</label>
+    <label for="note">Note: You need to <b>setup Weather Clock</b> for this to work.</label><br><br>
     <button onclick="uploadGifArt()">Load Art</button><br><br>
     <a class="update-button" onclick="updatePreference('selectedTheme', 210)">Select</a>
 </div>
   <script>
+    var yesCheckbox = document.getElementById('yes');
+    yesCheckbox.addEventListener('change', function() {
+
+        const xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function () {
+          if (this.readyState == 4 && this.status >= 200 && this.status < 299) {
+            document.getElementById('status').style.display = 'block';
+          }
+        };
+        xhr.open('POST', '/set?displayGifTimeAndWeather' + '=' + this.checked);
+        xhr.send();
+
+        setTimeout(() => {
+          document.getElementById('status').style.display = 'none';
+        }, 2000);        
+
+        if (this.checked) {
+            console.log('Yes checkbox is checked');
+            // Do something when the Yes checkbox is checked
+        } else {
+            console.log('Yes checkbox is unchecked');
+            // Do something when the Yes checkbox is unchecked
+        }
+    });
+
     function uploadGifArt() {
       var gifBaseUrlInput = document.getElementById('gifBaseUrl');
       var gifBaseUrl = gifBaseUrlInput.value.trim();
