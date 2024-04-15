@@ -1,8 +1,7 @@
-#include <stdint.h>
-
 // ******************************************* BEGIN MATRIX DISPLAY *******************************************
 #pragma region MATRIX_DISPLAY
 
+#include <stdint.h>
 #include <FS.h>
 #include <SPIFFS.h>
 #include <JPEGDEC.h>
@@ -29,6 +28,8 @@ uint16_t myGOLD = dma_display->color565(204, 204, 0);
 JPEGDEC jpeg;
 
 const char *ALBUM_ART = "/album.jpg";
+
+#ifdef ENABLE_MATRIX_DISPLAY
 
 void displaySetup()
 {
@@ -371,3 +372,52 @@ void drawBitmap(int startx, int starty, int width, int height, uint32_t *bitmap,
 
 #pragma endregion
 // ******************************************* END MATRIX DISPLAY *********************************************
+
+#else
+
+void displaySetup()
+{
+#warning "Header file not defined, function implementation ignored"
+}
+
+void clearScreen()
+{
+#warning "Header file not defined, function implementation ignored"
+}
+
+void printCenter(const char *buf, int y, uint16_t textColor = myWHITE, GFXfont font = Picopixel)
+{
+#warning "Header file not defined, function implementation ignored"
+}
+
+void drawBitmap(int startx, int starty, int width, int height, uint32_t *bitmap)
+{
+#warning "Header file not defined, function implementation ignored"
+}
+
+void drawBitmap(int startx, int starty, int width, int height, uint32_t *bitmap, bool enlarged)
+{
+#warning "Header file not defined, function implementation ignored"
+}
+
+void displayRect(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color)
+{
+#warning "Header file not defined, function implementation ignored"
+}
+
+void printLeft(const char *buf, int x, int y, uint16_t textColor = myWHITE, GFXfont font = Picopixel)
+{
+#warning "Header file not defined, function implementation ignored"
+}
+
+void printScrolling(const char *buf, int y, uint16_t textColor = myWHITE, GFXfont font = Picopixel)
+{
+#warning "Header file not defined, function implementation ignored"
+}
+
+void printScrolling2(const char *buf, int y, uint16_t textColor = myWHITE, GFXfont font = Picopixel)
+{
+#warning "Header file not defined, function implementation ignored"
+}
+
+#endif
