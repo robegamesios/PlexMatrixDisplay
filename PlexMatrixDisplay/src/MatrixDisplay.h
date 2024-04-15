@@ -29,6 +29,9 @@ JPEGDEC jpeg;
 
 const char *ALBUM_ART = "/album.jpg";
 
+bool isTextScrolling = false;
+bool isTextScrolling2 = false;
+
 #ifdef ENABLE_MATRIX_DISPLAY
 
 void displaySetup()
@@ -139,8 +142,6 @@ enum ScrollState
 
 char previousScrollingText[100] = "";
 char previousScrollingText2[100] = "";
-bool isTextScrolling = false;
-bool isTextScrolling2 = false;
 
 void printScrolling(const char *buf, int y, uint16_t textColor = myWHITE, GFXfont font = Picopixel)
 {
@@ -420,4 +421,8 @@ void printScrolling2(const char *buf, int y, uint16_t textColor = myWHITE, GFXfo
 #warning "Header file not defined, function implementation ignored"
 }
 
+int drawImagefromFile(const char *imageFileUri, int offset)
+{
+#warning "Header file not defined, function implementation ignored"
+}
 #endif
