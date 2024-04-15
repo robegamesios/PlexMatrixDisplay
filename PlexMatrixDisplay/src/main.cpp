@@ -4,9 +4,9 @@
 #define SPOTIFY_ALBUM_ART_THEME 201
 #define ANIMATED_GIF_THEME 210
 
-#define DEBUG // UnComment to see debug prints
+// #define DEBUG // UnComment to see debug prints
 
-// #define ENABLE_MATRIX_DISPLAY //Comment this to disable matrix display (for debugging purposes when no display is connected)
+#define ENABLE_MATRIX_DISPLAY //Comment this to disable matrix display (for debugging purposes when no display is connected)
 
 #include "MatrixDisplay.h"
 #include "TFWifiManager.h"
