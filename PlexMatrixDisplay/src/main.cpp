@@ -4,7 +4,9 @@
 #define SPOTIFY_ALBUM_ART_THEME 201
 #define ANIMATED_GIF_THEME 210
 
-// #define DEBUG // UnComment to see debug prints
+#define DEBUG // UnComment to see debug prints
+
+// #define ENABLE_MATRIX_DISPLAY //Comment this to disable matrix display (for debugging purposes when no display is connected)
 
 #include "MatrixDisplay.h"
 #include "TFWifiManager.h"
@@ -207,6 +209,9 @@ bool displayGifTimeAndWeather = false;
 void getDateAndTime()
 {
   String localTime = getLocalTimeAndDate();
+#ifdef DEBUG
+  Serial.println("current time = " + localTime);
+#endif
   scrollingText = localTime;
 }
 
@@ -340,28 +345,44 @@ void getWeatherInfo()
 
   String endpoint = "http://api.openweathermap.org/data/2.5/weather?q=" + city + "," + countryCode + "&APPID=" + apiKey + "&units=" + unit;
 
-  httpGet(endpoint, "", "", [](int httpCode, const String &response)
-          {
-    if (httpCode == HTTP_CODE_OK) {
-      String httpResponse = response;
-
 #ifdef DEBUG
-      Serial.println("http code: " + httpResponse);
+  Serial.println("weather endpoint = " + endpoint);
 #endif
 
-      const char *jsonCString = httpResponse.c_str();
-      WeatherData data = processWeatherJson(jsonCString);
+  HTTPClient http;
+  http.begin(endpoint);
+
+  int httpCode = http.GET();
+
+  if (httpCode == HTTP_CODE_OK)
+  {
+    String httpResponse = http.getString();
+#ifdef DEBUG
+    Serial.println("http response: " + httpResponse);
+#endif
+
+    const char *jsonCString = httpResponse.c_str();
+    WeatherData data = processWeatherJson(jsonCString);
 
 #ifdef WEATHERCLOCK_MODE
-      displayWeatherData(data);
-#elif ANIMATEDGIF_MODE
-      lowerScrollingText = data.fullInfo.c_str();
+#ifdef ENABLE_MATRIX_DISPLAY
+    displayWeatherData(data);
+#else
+    String fullInfo = data.fullInfo.c_str();
+    Serial.println("Weather Data = " + fullInfo);
 #endif
 
-    } else {
-      Serial.print("Error code: ");
-      Serial.println(httpCode);
-    } });
+#elif ANIMATEDGIF_MODE
+    lowerScrollingText = data.fullInfo.c_str();
+#endif
+  }
+  else
+  {
+    Serial.print("Error code: ");
+    Serial.println(httpCode);
+  }
+
+  http.end();
 }
 
 void fetchWeatherAndTime()
@@ -1736,6 +1757,7 @@ void setup()
   if (fetchWeatherConfigFile())
   {
     getWeatherInfo();
+    delay(1000);
   }
   else
   {

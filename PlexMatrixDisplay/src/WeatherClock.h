@@ -161,7 +161,8 @@ WeatherData processWeatherJson(const char *pJson)
     char str[128]; // general use string buffer
     jRead_string(pJson, "{'timezone'", str, 128);
     String timezone = str;
-    configTime(timezone.toFloat(), 0, "pool.ntp.org"); // DST offset is set to zero, no need since timezone accounts for it.
+    long currentTimezone = (timezone != NULL) ? timezone.toFloat() : 0;
+    configTime(currentTimezone, 0, "pool.ntp.org"); // DST offset is set to zero, no need since timezone accounts for it.
 
     std::string tempUnit = "";
     std::string pressureUnit = "hPa";
