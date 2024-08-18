@@ -76,7 +76,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
     <div class="w3-bar-item w3-button w3-hover-yellow w3-right" onclick="restartDevice();"><i class='fa fa-power-off'></i> Restart Device</div>
     <div class="w3-bar-item w3-select-container">
         <select id="brightnessSelect" name='option'>
-            <option value='128' title='Select Panel brightness'>Select Panel brightness</option>
+            <option value='300' title='Select Panel brightness'>Select Panel brightness</option>
             <option value='128' title='Medium'>Medium</option>
             <option value='255' title='Max'>Max</option>
         </select>

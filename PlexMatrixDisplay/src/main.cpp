@@ -186,7 +186,7 @@ const char *PREF_PANEL_BRIGHTNESS = "panelBrightness";
 void savePreferences()
 {
   preferences.putUInt(PREF_SELECTED_THEME, selectedTheme);
-  preferences.putInt(PREF_PANEL_BRIGHTNESS, panelBrightness);
+  preferences.putUInt(PREF_PANEL_BRIGHTNESS, panelBrightness);
 }
 
 void loadPreferences()
@@ -1434,9 +1434,12 @@ void processRequest(WiFiClient client, String method, String path, String key, S
     if (key == PREF_PANEL_BRIGHTNESS)
     {
       panelBrightness = value.toInt();
-      dma_display->setPanelBrightness(panelBrightness);
-      client.println("HTTP/1.0 204 No Content");
-      savePreferences();
+      if (panelBrightness <= 255)
+      {
+        dma_display->setPanelBrightness(panelBrightness);
+        client.println("HTTP/1.0 204 No Content");
+        savePreferences();
+      }
     }
 
 #ifdef AV_MODE
