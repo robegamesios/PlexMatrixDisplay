@@ -70,12 +70,19 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
       style="width:60%">
   </div>
 
-  <div class="w3-bar w3-black w3-medium">
+<div class="w3-bar w3-black w3-medium">
     <div id="fw-version" class="w3-bar-item w3-black w3-hover-red"></div>
     <div class="w3-bar-item w3-button w3-hover-yellow w3-right" onclick="resetWifi();"><i class='fa fa-wifi'></i> Reset Wifi</div>
-    <div id="ssid" class="w3-bar-item w3-hover-blue w3-right"></div>
     <div class="w3-bar-item w3-button w3-hover-yellow w3-right" onclick="restartDevice();"><i class='fa fa-power-off'></i> Restart Device</div>
-  </div>
+    <div class="w3-bar-item w3-select-container">
+        <select id="brightnessSelect" name='option'>
+            <option value='128' title='Select Panel brightness'>Select Panel brightness</option>
+            <option value='128' title='Medium'>Medium</option>
+            <option value='255' title='Max'>Max</option>
+        </select>
+    </div>
+    <div id="ssid" class="w3-bar-item w3-hover-blue w3-right"></div>
+</div>
 
 <div class="card">
     <h2 class="card-title">Weather Clock</h2>
@@ -221,6 +228,25 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
         document.getElementById('status').style.display = 'none';
       }, 2000);
     }
+
+    document.getElementById('brightnessSelect').addEventListener('change', function() {
+        var selectedValue = this.value;
+        var title = selectedValue.title;
+
+        const xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function () {
+          if (this.readyState == 4 && this.status >= 200 && this.status < 299) {
+            document.getElementById('status').style.display = 'block';
+          }
+        };
+        xhr.open('POST', '/set?panelBrightness' + '=' + selectedValue);
+        xhr.send();
+
+        setTimeout(() => {
+          document.getElementById('status').style.display = 'none';
+        }, 2000);        
+    });
+
 
     document.getElementById('optionSelect').addEventListener('change', function() {
         var selectedValue = this.value;

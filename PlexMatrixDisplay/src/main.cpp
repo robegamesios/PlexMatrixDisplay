@@ -6,7 +6,7 @@
 
 // #define DEBUG // UnComment to see debug prints
 
-#define ENABLE_MATRIX_DISPLAY //Comment this to disable matrix display (for debugging purposes when no display is connected)
+#define ENABLE_MATRIX_DISPLAY // Comment this to disable matrix display (for debugging purposes when no display is connected)
 
 #include "MatrixDisplay.h"
 #include "TFWifiManager.h"
@@ -22,6 +22,7 @@
 
 uint8_t selectedTheme;
 uint8_t currentlyRunningTheme;
+uint8_t panelBrightness;
 
 String scrollingText = "";
 String lowerScrollingText = "";
@@ -180,15 +181,18 @@ const char *PREF_WEATHER_STATION_CREDENTIALS = "weatherStationCredentials";
 const char *PREF_PLEX_CREDENTIALS = "plexCredentials";
 const char *PREF_SPOTIFY_CREDENTIALS = "spotifyCredentials";
 const char *PREF_DISPLAY_GIF_TIME_AND_WEATHER = "displayGifTimeAndWeather";
+const char *PREF_PANEL_BRIGHTNESS = "panelBrightness";
 
 void savePreferences()
 {
   preferences.putUInt(PREF_SELECTED_THEME, selectedTheme);
+  preferences.putInt(PREF_PANEL_BRIGHTNESS, panelBrightness);
 }
 
 void loadPreferences()
 {
   selectedTheme = preferences.getUInt(PREF_SELECTED_THEME, AUDIO_VISUALIZER_THEME);
+  panelBrightness = preferences.getUInt(PREF_PANEL_BRIGHTNESS, 128);
 }
 
 #pragma endregion
@@ -1118,7 +1122,7 @@ void GIFDraw(GIFDRAW *pDraw)
           *d++ = usPalette[c];
           iCount++;
         }
-      }           // while looking for opaque pixels
+      } // while looking for opaque pixels
       if (iCount) // any opaque pixels?
       {
         for (int xOffset = 0; xOffset < iCount; xOffset++)
@@ -1427,6 +1431,14 @@ void processRequest(WiFiClient client, String method, String path, String key, S
       return;
     }
 
+    if (key == PREF_PANEL_BRIGHTNESS)
+    {
+      panelBrightness = value.toInt();
+      dma_display->setPanelBrightness(panelBrightness);
+      client.println("HTTP/1.0 204 No Content");
+      savePreferences();
+    }
+
 #ifdef AV_MODE
     if (key == PREF_AV_PATTERN)
     {
@@ -1655,6 +1667,7 @@ void setup()
 
   preferences.begin("TUNEFRAME", false);
   loadPreferences();
+  dma_display->setPanelBrightness(panelBrightness);
   currentlyRunningTheme = selectedTheme;
 
   printCenter("TUNEFRAME", 30);
